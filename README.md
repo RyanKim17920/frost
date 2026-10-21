@@ -42,10 +42,10 @@ The same Frost Bar and Settings interface, with the macOS 27 differences listed 
 - **Three sections:** Visible, Hidden and Always Hidden. Click the snowflake to show Hidden; ⌥-click to show Always
   Hidden too. Optionally hide them again after a delay. On macOS 27, sections follow the arrangement you set in
   Layout (see [Known limitations](#known-limitations)).
-- **Frost Bar:** menu bar icons in a glass grid. Click an icon to open its menu. On macOS 26, images refresh while
-  the panel is open, and right-click, Control-click and ⌥-click are supported. On macOS 27, a primary click
-  temporarily moves the hidden icon beside the snowflake, leaves the pointer on it and returns it after its menu
-  closes and the pointer moves away. Images refresh when the panel opens and while editing the layout.
+- **Frost Bar:** menu bar icons in a glass grid. Click an icon to open its menu; right-click, Control-click and
+  ⌥-click are supported. On macOS 26, images refresh while the panel is open. On macOS 27, a click temporarily moves
+  the hidden icon beside the snowflake, leaves the pointer on it and returns it after its menu closes and the pointer
+  moves away. Images refresh when the panel opens and while editing the layout.
 - **Layout editor:** drag icons between sections or change their order; each drop moves the actual menu bar icon.
   Optional Screen Recording adds captured images on both macOS versions.
 - **Keep icons in their sections (macOS 26):** new apps' icons go to Hidden, and when an app relaunches and macOS
@@ -111,12 +111,11 @@ reopens the window you were in.
 
 - **macOS 27:** sections remember the arrangement you set in Layout; they do not certify which icons macOS
   currently draws. The Frost Bar lists your configured Hidden items (plus Always Hidden on Option-click),
-  without a hidden-item count. Forwarding briefly reveals the menu bar to move an item out and back. Primary clicks
-  are supported; right-click, Control-click and Option-click forwarding are unavailable. Captured images refresh when the panel
-  opens and while editing, rather than continuously while the panel stays open; items that cannot be captured keep
-  their app icon. Frost remembers your sections but does not automatically move relaunched icons back into them.
-  Hiding and forwarding have been verified on one unnotched display; notched hardware and multiple displays still
-  need verification on this backend.
+  without a hidden-item count. Forwarding briefly reveals the menu bar to move an item out and back. Captured images
+  refresh when the panel opens and while editing, rather than continuously while the panel stays open; items that
+  cannot be captured keep their app icon. Frost remembers your sections but does not automatically move relaunched
+  icons back into them. Hiding and plain-click forwarding have been verified on one unnotched display; right-click and
+  ⌥-click forwarding, notched hardware and multiple displays still need verification on this backend.
 - On macOS 28 and later, Frost leaves the menu bar alone and shows an unsupported-version notice.
 - With several displays, Frost manages the menu bar you last clicked; the other displays show macOS's copies of it.
 - On macOS 26, macOS doesn't draw icons behind the notch, so Frost gets their images with a short background

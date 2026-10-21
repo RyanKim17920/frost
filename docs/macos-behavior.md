@@ -631,6 +631,9 @@ forward, pointer linger and return passed too. An early post-return AX hit was r
 hits and the framebuffer corroborated collapse. Neither that early sample nor a timer certifies hidden completion.
 
 The relayout is visible; no freeze-frame quietness is claimed. Only primary clicks were qualified in this correction.
+Right-click, Control-click and ⌥-click forwarding were implemented afterwards on the same path (a HID right click, and
+a left click with the Option key held down for real around it, because the snowflake measurement showed the
+redelivered action losing Option); they have not been measured in the VM yet (`manual-test-checklist.md`, section 11).
 The return record keeps the existing UserDefaults format, with launch recovery and clear after observed placement;
 this is not a durable power-loss journal. Notched hardware and multiple displays remain unqualified on this backend.
 

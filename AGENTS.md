@@ -258,11 +258,13 @@ The bullets below are macOS 26 unless they say otherwise; macOS 27 is a separate
   a neighbour: that remains a rejection, not permission to drag at stale coordinates.
 - **A Frost Bar click uses move-out / click / linger / exact return.** Reveal to reacquire the target and original
   neighbours, persist its pending return, move it right of the snowflake, then collapse the other items before a
-  positively hit-tested plain HID click. Leave the pointer on the moved icon; return only after its presentation
+  positively hit-tested HID click. Leave the pointer on the moved icon; return only after its presentation
   closes and the pointer leaves. Reveal again for the return and clear the record only after observing the slot.
   On 27 the snowflake action also reads currently held modifiers: the redelivered event can lose Option.
   Failed returns retain the record; launch recovery resolves its unique identities before retrying. This uses the
-  existing UserDefaults format and does not promise power-loss durability. Primary clicks only are qualified.
+  existing UserDefaults format and does not promise power-loss durability. Right / Control-clicks forward as a HID
+  right click and ⌥-clicks hold the Option key for real around the click (`ForwardedClick.events(holdingModifierKeys:)`),
+  since the redelivered click can lose the flags it was posted with; only primary clicks were measured in the VM.
 - **Frost's own items are identified by the names they were created with** (`Frost27.HiddenDivider`,
   `Frost27.AlwaysHiddenDivider` and their `.Pair` companions), not through `FrostControlLocator`: on 27
   a divider held as a thin line reports an Accessibility frame that differs from its window's. When this broke, a layout drop silently did nothing, because

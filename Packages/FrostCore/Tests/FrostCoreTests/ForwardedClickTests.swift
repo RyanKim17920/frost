@@ -27,4 +27,37 @@ import Testing
         #expect(ForwardedClick.primaryWithOption.flags == .maskAlternate)
         #expect(ForwardedClick.primary.flags.isEmpty)
     }
+
+    @Test func clicksStartWithALoneMouseUpAndCarryTheirFlags() {
+        #expect(ForwardedClick.primary.events() == [
+            .mouse(.leftMouseUp, .left, flags: []),
+            .mouse(.leftMouseDown, .left, flags: []), .mouse(.leftMouseUp, .left, flags: []),
+        ])
+        #expect(ForwardedClick.secondary.events() == [
+            .mouse(.leftMouseUp, .left, flags: []),
+            .mouse(.rightMouseDown, .right, flags: []), .mouse(.rightMouseUp, .right, flags: []),
+        ])
+        // macOS 26: Option only on the mouse events, no key is pressed.
+        #expect(ForwardedClick.primaryWithOption.events() == [
+            .mouse(.leftMouseUp, .left, flags: []),
+            .mouse(.leftMouseDown, .left, flags: .maskAlternate), .mouse(.leftMouseUp, .left, flags: .maskAlternate),
+        ])
+    }
+
+    @Test func holdingModifierKeysPressesOptionAroundTheClickAndReleasesIt() {
+        let events = ForwardedClick.primaryWithOption.events(holdingModifierKeys: true)
+        #expect(events == [
+            .mouse(.leftMouseUp, .left, flags: []),
+            .modifierKey(ForwardedClick.optionKeyCode, down: true, flags: .maskAlternate),
+            .mouse(.leftMouseDown, .left, flags: .maskAlternate), .mouse(.leftMouseUp, .left, flags: .maskAlternate),
+            .modifierKey(ForwardedClick.optionKeyCode, down: false, flags: []),
+        ])
+        // Every key that goes down comes back up, last.
+        #expect(events.last == .modifierKey(ForwardedClick.optionKeyCode, down: false, flags: []))
+    }
+
+    @Test func holdingModifierKeysChangesNothingWithoutModifiers() {
+        #expect(ForwardedClick.primary.events(holdingModifierKeys: true) == ForwardedClick.primary.events())
+        #expect(ForwardedClick.secondary.events(holdingModifierKeys: true) == ForwardedClick.secondary.events())
+    }
 }

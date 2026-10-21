@@ -61,8 +61,10 @@ public struct OwnerWindowFrames: Equatable, Sendable {
 /// Clicks menu bar items and detects when their menu / popover closes (implemented per macos-behavior.md,
 /// "Task 11").
 public enum ItemClicker {
-    /// A plain HID click on macOS 27, only after reacquiring and positively hit-testing the exact AX identity.
-    /// Synthetic inventory handles must never be used as event-routing window IDs.
+    /// A HID click on macOS 27 (`kind`: left, right, or left with Option), only after reacquiring and positively
+    /// hit-testing the exact AX identity. Synthetic inventory handles must never be used as event-routing window IDs.
+    /// An Option click holds the Option key for real around the click: `MenuBarAgent` redelivers the click to the
+    /// item's app and may drop the flags the events carry (`ForwardedClick.events(holdingModifierKeys:)`).
     @concurrent
     public static func clickVerified(_ item: MenuBarItem, kind: ForwardedClick = .primary) async throws {
         guard let pid = item.pid, let identity = item.identityKey, CGPreflightPostEventAccess() else {
@@ -70,7 +72,7 @@ public enum ItemClicker {
         }
         let point = CGPoint(x: item.frame.midX, y: item.frame.midY)
         guard AXExtrasReader.isItemAt(point, pid: pid, identityKey: identity) else { throw ItemClickError.notOnScreen }
-        postClick(at: point, windowID: 0, kind: kind)
+        postClick(at: point, windowID: 0, kind: kind, holdingModifierKeys: true)
     }
     /// Clicks an **on-screen** item. Prefers AXPress (background thread, 0.25 s messaging timeout); both
     /// `.success` and `.cannotComplete` count as delivered (once NSMenu enters its tracking loop the AX reply
@@ -445,11 +447,17 @@ public enum ItemClicker {
     /// position-only routing, the click is swallowed if the point is covered by a higher-level window (e.g. the
     /// lock screen's Shield window); with 0x33 it still reaches the target item.
     /// Called on a background thread; the cursor is restored afterwards (and hidden meanwhile when it was elsewhere).
-    static func postClick(at point: CGPoint, windowID: CGWindowID, kind: ForwardedClick = .primary) {
-        SyntheticEventGate.posting { postClickNow(at: point, windowID: windowID, kind: kind) }
+    /// `holdingModifierKeys`: press the click's modifier keys for real around it (macOS 27, see
+    /// `ForwardedClick.events(holdingModifierKeys:)`).
+    static func postClick(at point: CGPoint, windowID: CGWindowID, kind: ForwardedClick = .primary,
+                          holdingModifierKeys: Bool = false) {
+        SyntheticEventGate.posting {
+            postClickNow(at: point, windowID: windowID, kind: kind, holdingModifierKeys: holdingModifierKeys)
+        }
     }
 
-    private static func postClickNow(at point: CGPoint, windowID: CGWindowID, kind: ForwardedClick) {
+    private static func postClickNow(at point: CGPoint, windowID: CGWindowID, kind: ForwardedClick,
+                                     holdingModifierKeys: Bool) {
         let source = CGEventSource(stateID: .hidSystemState)
         let savedCursor = CGEvent(source: nil)?.location
         // A click away from the pointer (closing a presentation, the click-outside fallback) warps it there and back:
@@ -468,20 +476,26 @@ public enum ItemClicker {
         // the action (known risk (a); measured in a VM: after a move, Spotlight swallows the first synthetic click
         // no matter how long we wait, but opens once a mouse-up is sent first). Items that aren't stuck ignore
         // this mouse-up. (The stuck state is the left button's, so a right click starts with a left mouse-up too.)
-        let (down, up) = kind.eventTypes
-        let events = [(CGEventType.leftMouseUp, CGMouseButton.left, CGEventFlags()),
-                      (down, kind.mouseButton, kind.flags), (up, kind.mouseButton, kind.flags)]
-            .compactMap { type, button, flags -> CGEvent? in
+        let planned = kind.events(holdingModifierKeys: holdingModifierKeys)
+        let events = planned.compactMap { event -> CGEvent? in
+            switch event {
+            case .mouse(let type, let button, let flags):
                 let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point,
                                     mouseButton: button)
                 event?.flags = flags
+                event?.setIntegerValueField(.mouseEventClickState, value: 1)
+                if windowID != 0 { event?.setIntegerValueField(ItemMover.windowIDField, value: Int64(windowID)) }
+                return event
+            case .modifierKey(let key, let down, let flags):
+                let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: down)
+                event?.type = .flagsChanged
+                event?.flags = flags
                 return event
             }
-        // Post only if all were created, so we never send a lone mouse-down.
-        guard events.count == 3 else { return }
+        }
+        // Post only if all were created, so we never send a lone mouse-down or a key-down without its key-up.
+        guard events.count == planned.count else { return }
         for e in events {
-            e.setIntegerValueField(.mouseEventClickState, value: 1)
-            if windowID != 0 { e.setIntegerValueField(ItemMover.windowIDField, value: Int64(windowID)) }
             e.post(tap: .cghidEventTap)
             usleep(30_000)
         }

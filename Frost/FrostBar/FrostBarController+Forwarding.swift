@@ -107,11 +107,14 @@ extension FrostBarController {
     /// macOS 27 has no per-item windows: reveal to acquire the exact target and its original neighbours,
     /// move it past the snowflake, then collapse again before the real click. Keep it there until the same
     /// presentation/linger rules as macOS 26 permit an exact return.
+    ///
+    /// Every click kind takes this path: the click itself is a HID event at the moved icon either way
+    /// (`ItemClicker.clickVerified`), a right / Control-click as a right click and an ⌥-click with Option held for
+    /// real around it, since the bar can redeliver the click without the flags it was posted with.
     private func forwardAccessibilityItem(_ id: CGWindowID, click: ForwardedClick,
                                           handOff: ActivationHandOff?) async throws {
         let sections = app.sections
         guard !sections.isEditing else { throw FrostBarError.editing }
-        guard click == .primary else { throw FrostBarError.notAvailable }
         guard CGPreflightPostEventAccess(), app.permissions.canManageItems else { throw FrostBarError.notAvailable }
         var plan: RestorePlan?
         var pending: ItemIdentity?

@@ -583,6 +583,11 @@ compare the menu bar extras' AX frames and the pixels of the bar (`testing-vm.md
 - [ ] Clicking a hidden tile reveals, moves it right of the snowflake, collapses the others and opens its native menu.
   The pointer lands on the moved icon. Esc closes the menu; the icon stays out while the pointer lingers, then
   returns to its original neighbours when the pointer leaves. Check the collapsed framebuffer afterwards.
+- [ ] Right-click, Control-click and ⌥-click a hidden tile (FakeItems' gear `FIDual`): the same move-out / linger /
+  return as a plain click; a right-click or Control-click opens its *secondary* menu (`/tmp/fakeitems.log`:
+  `dual click right`), an ⌥-click its primary menu with the extra "hidden option" entry (`dual click left
+  option=true`). Afterwards Option is not stuck: a plain click on a tile logs `dual click left option=false`, and
+  typing in a text field gives normal characters.
 - [ ] Settings → Layout: the three bands hold **the arrangement**, not something read from the bar; with nothing
   arranged yet every icon is in Visible and the footer explains that macOS decides how many icons the menu bar shows.
   Drag a tile into Hidden: the icon really moves in the menu bar (log: `direct ⌘-drag … verified against the order the
