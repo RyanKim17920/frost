@@ -169,6 +169,26 @@ before. When you fix a finding, add it to "Watch for" so the next run checks it.
 - A click on the menu bar just as the icon goes back (another icon, an app menu, the snowflake): the icon still ends
   up in its exact slot, and a menu that click opened stays open (the icon goes back once it closes).
 
+### J6a. Daily use: in the menu bar
+
+**Start:** everything granted, display mode In Menu Bar, **Automatically rehide** and **Rehide when you’re done** on,
+several hidden icons, one of them with a popover.
+
+1. Click the snowflake, open a revealed icon's menu and pick an entry: the icons hide again right after the menu
+   closes.
+2. Click the snowflake, open a menu and press Esc with the pointer still on the menu bar: the icons stay until the
+   pointer leaves the menu bar.
+3. Click the snowflake, open the popover icon and work in the popover (click its controls): the icons stay and the
+   popover stays where it is. Close it: the icons hide.
+4. Click the snowflake and ⌘-Tab to another app: the icons hide.
+5. Turn **Rehide when you’re done** off in Settings → Behavior and repeat step 1: the icons stay until the delay or a
+   click elsewhere.
+
+**Watch for:**
+- The icons hiding while a menu or popover opened from them is still in use, or while the pointer is on the menu bar.
+- A popover left floating with its icon gone.
+- The icons staying revealed long after the user moved on (another app in front, the menu long closed).
+
 ### J7. Arranging icons: the layout editor
 
 **Start:** everything granted.

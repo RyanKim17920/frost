@@ -42,6 +42,8 @@ final class SectionController {
     @ObservationIgnored private var alwaysHidden: SeparatorItem?
 
     @ObservationIgnored private var rehideTask: Task<Void, Never>?
+    /// Polls for "Rehide when you're done" while the icons are revealed (`startSmartRehide`).
+    @ObservationIgnored private var smartRehideTask: Task<Void, Never>?
     /// Mouse monitors (global + local) that collapse immediately on an outside click while expanded inline.
     @ObservationIgnored private var outsideClickMonitors = EventMonitors()
     @ObservationIgnored private var settleTask: Task<Void, Never>?
@@ -939,6 +941,7 @@ final class SectionController {
             guard let self, !self.isEditing, self.state != .collapsed else { return }
             self.setState(.collapsed)
         }
+        if preferences.smartRehide { startSmartRehide() }
         outsideClickMonitors.add(
             matching: .leftMouseDown,
             // Clicks in other apps.
@@ -956,11 +959,60 @@ final class SectionController {
     }
 
     /// A click outside the menu bar (AppKit global coordinates): collapse. `window` is the Frost window of a local
-    /// event (status item windows don't count as outside).
+    /// event (status item windows don't count as outside). A click inside a popover hanging from the menu bar (one the
+    /// user opened from a revealed icon, `MenuBarPresentation`) is the user working in it, not a click elsewhere:
+    /// collapsing would move its icon away from under it.
     private func outsideClick(at point: NSPoint, in window: NSWindow? = nil) {
         guard !isEditing, state != .collapsed, !isInMenuBar(point) else { return }
         if let window, window.className.contains("StatusBar") { return }
+        if window == nil, MenuBarPresentation.presentationContains(
+            ScreenCoordinates.cgPoint(fromAppKit: point), windows: MenuBarPresentation.currentWindows(),
+            menuBars: menuBarRects(), ownPID: getpid()) {
+            FrostLog.sections.debug("click inside a popover opened from the menu bar; not rehiding")
+            return
+        }
         setState(.collapsed)
+    }
+
+    /// "Rehide when you're done" (`SmartRehide`): polls while the icons are revealed and collapses as soon as a menu
+    /// or popover the user opened from the menu bar closed, or they switched apps. The delay timer stays as the
+    /// fallback. Ended by `cancelAutoRehide` (every state change, editing, a temporary expansion).
+    private func startSmartRehide() {
+        let start = SmartRehide(start: .now, frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier)
+        let initialWindows = Set(MenuBarPresentation.currentWindows().map(\.windowID))
+        smartRehideTask = Task { [weak self] in
+            var policy = start
+            var baseline = initialWindows
+            while true {
+                do { try await Task.sleep(for: Self.smartRehidePoll) } catch { return }
+                guard let self, !self.isEditing, self.temporaryExpansion == nil, self.state != .collapsed else { return }
+                let windows = MenuBarPresentation.currentWindows()
+                // Quiet for a while: whatever appeared meanwhile (a notification banner) isn't something the user
+                // opened from the menu bar. Taken before the check, so such a window never counts as a presentation.
+                if policy.acceptsNewBaseline { baseline = Set(windows.map(\.windowID)) }
+                let isOpen = MenuBarPresentation.isOpen(in: windows, baseline: baseline, menuBars: self.menuBarRects(),
+                                                        ownPID: getpid())
+                let sample = SmartRehide.Sample(
+                    time: .now, isPointerInMenuBar: self.isInMenuBar(NSEvent.mouseLocation), isPresentationOpen: isOpen,
+                    frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                    isMouseButtonHeld: UserMouseButtons.isAnyHeld)
+                if case .collapse(let reason) = policy.update(sample) {
+                    FrostLog.sections.notice("rehiding: \(reason.rawValue, privacy: .public)")
+                    self.setState(.collapsed)
+                    return
+                }
+            }
+        }
+    }
+
+    private static let smartRehidePoll: Duration = .milliseconds(250)
+
+    /// The menu bar of every display, in CG coordinates.
+    private func menuBarRects() -> [CGRect] {
+        NSScreen.screens.map { screen in
+            let frame = ScreenCoordinates.cgRect(fromAppKit: screen.frame)
+            return CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: menuBarHeight(of: screen))
+        }
     }
 
     private static let autoRehideRecheck: Duration = .seconds(2)
@@ -972,6 +1024,8 @@ final class SectionController {
     private func cancelAutoRehide() {
         rehideTask?.cancel()
         rehideTask = nil
+        smartRehideTask?.cancel()
+        smartRehideTask = nil
         outsideClickMonitors.removeAll()
     }
 

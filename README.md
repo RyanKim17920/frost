@@ -40,7 +40,8 @@ The same Frost Bar and Settings interface, with the macOS 27 differences listed 
 ## Features
 
 - **Three sections:** Visible, Hidden and Always Hidden. Click the snowflake to show Hidden; ⌥-click to show Always
-  Hidden too. Optionally hide them again after a delay. On macOS 27, sections follow the arrangement you set in
+  Hidden too. Optionally hide them again after a delay, or as soon as you're done (a menu you opened closes, or you
+  switch apps). On macOS 27, sections follow the arrangement you set in
   Layout (see [Known limitations](#known-limitations)).
 - **Frost Bar:** menu bar icons in a glass grid. Click an icon to open its menu; right-click, Control-click and
   ⌥-click are supported. On macOS 26, images refresh while the panel is open. On macOS 27, a click temporarily moves

@@ -41,6 +41,13 @@ struct BehaviorView: View {
                     Toggle("Automatically rehide", isOn: $preferences.autoRehide)
                         .labelsHidden().toggleStyle(.switch)
                 }
+                SettingRow(title: "Rehide when you’re done",
+                           subtitle: "Hides icons as soon as a menu you opened closes, or when you switch apps.") {
+                    Toggle("Rehide when you’re done", isOn: $preferences.smartRehide)
+                        .labelsHidden().toggleStyle(.switch)
+                }
+                .disabled(!preferences.autoRehide)
+                .opacity(preferences.autoRehide ? 1 : 0.5)
                 RehideDelayRow(delay: $preferences.autoRehideDelay)
                     .disabled(!preferences.autoRehide)
                     .opacity(preferences.autoRehide ? 1 : 0.5)

@@ -667,6 +667,16 @@
         }
       }
     },
+    "Hides icons as soon as a menu you opened closes, or when you switch apps." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开的菜单关闭后，或切换 App 时，立即隐藏图标。"
+          }
+        }
+      }
+    },
     "Hiding and showing icons doesn’t require any permissions." : {
       "localizations" : {
         "zh-Hans" : {
@@ -988,6 +998,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "收起延时"
+          }
+        }
+      }
+    },
+    "Rehide when you’re done" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用完即收起"
           }
         }
       }

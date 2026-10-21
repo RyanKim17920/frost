@@ -11,6 +11,7 @@ final class Preferences {
     private enum Key {
         static let autoRehide = "autoRehide"
         static let autoRehideDelay = "autoRehideDelay"
+        static let smartRehide = "smartRehide"
         static let displayMode = "displayMode"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let keepItemSections = "keepItemSections"
@@ -26,6 +27,12 @@ final class Preferences {
     /// Seconds.
     var autoRehideDelay: Double {
         didSet { defaults.set(autoRehideDelay, forKey: Key.autoRehideDelay) }
+    }
+
+    /// With `autoRehide`: also rehide as soon as the user is done with the revealed icons (a menu they opened closed,
+    /// they switched apps; `SmartRehide`), before the delay.
+    var smartRehide: Bool {
+        didSet { defaults.set(smartRehide, forKey: Key.smartRehide) }
     }
 
     var displayMode: DisplayMode {
@@ -51,6 +58,7 @@ final class Preferences {
         self.defaults = defaults
         autoRehide = defaults.object(forKey: Key.autoRehide) as? Bool ?? true
         autoRehideDelay = defaults.object(forKey: Key.autoRehideDelay) as? Double ?? 15
+        smartRehide = defaults.object(forKey: Key.smartRehide) as? Bool ?? true
         displayMode = defaults.string(forKey: Key.displayMode).flatMap(DisplayMode.init(rawValue:)) ?? .automatic
         hasCompletedOnboarding = defaults.object(forKey: Key.hasCompletedOnboarding) as? Bool ?? false
         keepItemSections = defaults.object(forKey: Key.keepItemSections) as? Bool ?? true

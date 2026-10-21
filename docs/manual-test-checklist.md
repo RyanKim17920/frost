@@ -96,6 +96,15 @@ For each item, record: environment (model / displays / macOS version) and result
 - [ ] Clicking outside collapses immediately (In Menu Bar mode with **Automatically hide** on): clicking another app's
   window, **and also Frost's own Settings window** (Behavior tab), collapses immediately; clicking the menu bar (empty
   space, other items) does not, and clicking the snowflake toggles as usual.
+- [ ] **Rehide when you're done** (In Menu Bar mode, **Automatically rehide** and this switch on; the delay set to
+  60 s so it can't interfere): expand, click a revealed FakeItems menu item and pick an entry, or press Esc: the
+  section collapses about 0.4 s after the menu closes and the pointer is out of the menu bar (log `rehiding: a menu or
+  popover opened from the menu bar closed`). Close a menu with Esc while the pointer stays on the menu bar: nothing
+  until the pointer leaves. Open a revealed popover item and click **inside** the popover: it stays expanded and the
+  popover stays put; close the popover: it collapses. Expand, move the pointer down and ⌘-Tab to another app: it
+  collapses (log `rehiding: the frontmost app changed`). Expand and just move the pointer around the desktop without
+  switching apps: it stays expanded until the delay. With the switch off, only the delay and outside clicks collapse
+  (a click inside a revealed popover still doesn't).
 - [ ] Right-click the snowflake: the menu contains "Settings…", "Check for Updates…" and "Quit Frost", each with an
   icon so the titles line up (also in Simplified Chinese).
 - [ ] Without any permissions, the display mode is forced to In Menu Bar, and hiding / showing works normally.
@@ -378,7 +387,8 @@ For each item, record: environment (model / displays / macOS version) and result
 - [ ] The snowflake in the menu bar matches the neighboring Wi‑Fi / Control Center / third-party icons in size and
   weight, and is vertically centered in both light and dark menu bars; it doesn't animate on expand / collapse.
 - [ ] Behavior tab (sections **Menu Bar** and **General**, native switches, no per-row icons): **Show hidden icons**,
-  **Automatically rehide** with **Rehide delay** (dimmed while rehide is off), **Keep icons in their sections** and
+  **Automatically rehide** with **Rehide when you’re done** and **Rehide delay** (both dimmed while rehide is off),
+  **Keep icons in their sections** and
   **Launch at login** work; an inline error appears if enabling launch at login fails. Switching the display mode
   changes its one-line explanation instantly: the row keeps its height and the rows below don't move; no overlapping
   text.
@@ -594,6 +604,9 @@ compare the menu bar extras' AX frames and the pixels of the bar (`testing-vm.md
   menu bar reports`), and the band keeps it after closing and reopening the editor and after relaunching Frost.
 - [ ] A drop into an empty band is not reported as a failure when the icon did move (the destination is one of Frost's
   own dividers, an invisible 8 pt line: "on the divider's hidden side" counts as reached).
+- [ ] In Menu Bar mode, **Rehide when you're done** behaves as in section 3: expanded, picking an entry in a revealed
+  icon's menu (or Esc) collapses once the pointer leaves the menu bar, and ⌘-Tab to another app collapses. Check the
+  collapse on the framebuffer.
 - [ ] Behavior and About are the macOS 26 windows; Check for Updates… works.
 - [ ] English and Simplified Chinese, Light and Dark Mode.
 
