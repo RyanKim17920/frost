@@ -108,11 +108,18 @@ extension FrostBarController {
     /// move it past the snowflake, then collapse again before the real click. Keep it there until the same
     /// presentation/linger rules as macOS 26 permit an exact return.
     ///
-    /// Every click kind takes this path: the click itself is a HID event at the moved icon either way
-    /// (`ItemClicker.clickVerified`), a right / Control-click as a right click and an ⌥-click with Option held for
-    /// real around it, since the bar can redeliver the click without the flags it was posted with.
-    private func forwardAccessibilityItem(_ id: CGWindowID, click: ForwardedClick,
+    /// The click itself is a HID event at the moved icon (`ItemClicker.clickVerified`): a right / Control-click as a
+    /// right click; an ⌥-click as a plain click, since the bar redelivers clicks to their app without modifier flags
+    /// (`ForwardedClick.deliverable(on:)`).
+    private func forwardAccessibilityItem(_ id: CGWindowID, click requested: ForwardedClick,
                                           handOff: ActivationHandOff?) async throws {
+        let click = requested.deliverable(on: .accessibility)
+        if click != requested {
+            FrostLog.frostBar.notice("""
+                forwarding the \(requested.logName, privacy: .public) click as \(click.logName, privacy: .public): \
+                macOS 27 delivers menu bar clicks without modifier flags
+                """)
+        }
         let sections = app.sections
         guard !sections.isEditing else { throw FrostBarError.editing }
         guard CGPreflightPostEventAccess(), app.permissions.canManageItems else { throw FrostBarError.notAvailable }

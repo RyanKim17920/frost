@@ -41,34 +41,12 @@ public enum ForwardedClick: Equatable, Sendable {
     /// Modifier flags of the forwarded events.
     public var flags: CGEventFlags { self == .primaryWithOption ? .maskAlternate : [] }
 
-    /// One event of a forwarded click, in posting order.
-    public enum PlannedEvent: Equatable, Sendable {
-        case mouse(CGEventType, CGMouseButton, flags: CGEventFlags)
-        /// A modifier key going down or up (a `flagsChanged` event), with the flags in effect afterwards.
-        case modifierKey(CGKeyCode, down: Bool, flags: CGEventFlags)
-    }
-
-    /// The virtual key code of the left Option key (`kVK_Option`).
-    public static let optionKeyCode: CGKeyCode = 0x3A
-
-    /// The events that make up this click, in posting order.
-    ///
-    /// Always a lone left mouse-up first (it ends the "pressed" state a ⌘-drag can leave behind; see
-    /// `ItemClicker.postClick`), then the click's down / up carrying `flags`.
-    ///
-    /// `holdingModifierKeys` (macOS 27): the click's modifier keys are also pressed for real around the mouse events
-    /// (a key-down `flagsChanged` before, the matching key-up after). There `MenuBarAgent` receives the click and
-    /// redelivers it to the item's app, and the redelivered event can lose the flags it was posted with (measured on
-    /// Frost's own snowflake), so an app reading the event's flags or the current modifier state
-    /// (`NSEvent.modifierFlags`) only sees Option while the key is held. The key-up is part of the same sequence, so
-    /// whoever posts it never leaves the key held.
-    public func events(holdingModifierKeys: Bool = false) -> [PlannedEvent] {
-        let (down, up) = eventTypes
-        let click: [PlannedEvent] = [.mouse(down, mouseButton, flags: flags), .mouse(up, mouseButton, flags: flags)]
-        let leading = PlannedEvent.mouse(.leftMouseUp, .left, flags: [])
-        guard holdingModifierKeys, self == .primaryWithOption else { return [leading] + click }
-        return [leading, .modifierKey(Self.optionKeyCode, down: true, flags: flags)] + click
-            + [.modifierKey(Self.optionKeyCode, down: false, flags: [])]
+    /// The click that can actually reach the item's app on `backend`. On macOS 27 the menu bar receives the click and
+    /// redelivers it to the app without its modifier flags (measured: an Option click arrived as a plain one, also with
+    /// Option held for real), so an Option click is sent as the plain click the app would see anyway. The button
+    /// survives: a right click still reaches the app as one.
+    public func deliverable(on backend: MenuBarBackend) -> ForwardedClick {
+        backend == .accessibility && self == .primaryWithOption ? .primary : self
     }
 
     /// Short name for logs.
