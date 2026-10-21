@@ -113,6 +113,17 @@ vm_vncdo() {
   PYTHONWARNINGS=ignore "$VM_VENV/bin/vncdo" -s "${hostport%:*}::${hostport##*:}" -p "$pass" "$@"
 }
 
+# Framebuffer pixels per guest point (1 or 2: the guest's display mode decides). `$1` = the guest's main display
+# width in points. VNC coordinates are framebuffer pixels, so points are multiplied by this before clicking.
+vm_fb_scale() {
+  local shot="/tmp/frost-fb-$$.png" width
+  vm_vncdo capture "$shot" >/dev/null 2>&1 || return 1
+  width="$(sips -g pixelWidth "$shot" 2>/dev/null | awk '/pixelWidth/ {print $2}')"
+  rm -f "$shot"
+  [[ -n "$width" ]] || return 1
+  /usr/bin/python3 -I -c 'import sys; print(round(float(sys.argv[1]) / float(sys.argv[2])))' "$width" "$1"
+}
+
 # Install a Frost.app bundle from the host as the guest's $GUEST_APP (quits Frost first). tar (without AppleDouble
 # files) keeps symlinks and _CodeSignature intact, so the signature stays valid; checked in the guest afterwards.
 vm_install_app() {

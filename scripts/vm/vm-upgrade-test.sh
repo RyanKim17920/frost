@@ -146,10 +146,15 @@ if sys.argv[3]:
 # Click the snowflake (VNC input into the guest only), leave the Frost Bar open for 8 s (live refresh captures the
 # Hidden items), close it with a second click and park the pointer on the desktop.
 open_frost_bar_once() {
-  local json x
+  local json x y scale park
   json=$(vm_ssh "$GUEST_DIR/guest-sections --json") || return 1
-  x=$(/usr/bin/python3 -I -c 'import json,sys; f=json.loads(sys.argv[1])["frost"]["icon"]; print(int((f["x"]+f["width"]/2)*2))' "$json")
-  "$SCRIPT_DIR/vm-vnc.sh" move "$x" 30 click 1 pause 8 move "$x" 30 click 1 pause 1 move 1728 1400
+  # VNC coordinates are framebuffer pixels: 2 per point at the 1728x1117@2x mode `vm-setup.sh` asks for, 1 when the
+  # guest comes up at 1x. Assuming 2x on a 1x guest clicked off the snowflake and the Frost Bar never opened.
+  scale=$(vm_fb_scale "$(/usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])["displayWidth"])' "$json")") \
+    || return 1
+  x=$(/usr/bin/python3 -I -c 'import json,sys; f=json.loads(sys.argv[1])["frost"]["icon"]; print(int((f["x"]+f["width"]/2)*int(sys.argv[2])))' "$json" "$scale")
+  y=$((12 * scale)); park=$((700 * scale))
+  "$SCRIPT_DIR/vm-vnc.sh" move "$x" "$y" click 1 pause 8 move "$x" "$y" click 1 pause 1 move "$park" "$park"
 }
 
 guest_log() { # $1 = start (guest local time) -> Frost's unified log since then

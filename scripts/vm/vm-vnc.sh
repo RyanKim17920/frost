@@ -2,7 +2,8 @@
 # Send mouse/keyboard input to the VM (or grab its framebuffer) through the
 # VM's own VNC server — input goes to the guest only, never the host desktop.
 # Arguments are vncdotool commands; coordinates are framebuffer pixels
-# (3456x2234 at the default 1728x1117@2x mode, i.e. points x 2).
+# (3456x2234 at the 1728x1117@2x mode, i.e. points x 2; a guest that came up at 1x has a 1728x1117 framebuffer and
+# takes points as is: check with `vm-screenshot.sh`, or `vm_fb_scale` in common.sh).
 #   scripts/vm/vm-vnc.sh move 2956 30 click 1          # e.g. click the ❄ status item
 #   scripts/vm/vm-vnc.sh key alt-w                     # ⌘W  (Apple's VNC server maps VNC alt → ⌘)
 #   scripts/vm/vm-vnc.sh move 2956 30 keydown meta click 1 keyup meta   # ⌥-click (VNC meta → ⌥)

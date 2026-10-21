@@ -71,6 +71,8 @@ if json {
         "sections": Dictionary(uniqueKeysWithValues: items.map { ($0.title, section(of: $0)) }),
         "frost": ["icon": frame(icon), "hidden": frame(hidden), "alwaysHidden": frame(alwaysHidden)],
         "windows": frostWindows,
+        // In points: the host divides the VNC framebuffer width by it to get the guest's scale (1x or 2x).
+        "displayWidth": CGDisplayBounds(CGMainDisplayID()).width,
     ]
     let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     print(String(decoding: data, as: UTF8.self))
