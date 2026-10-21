@@ -996,8 +996,8 @@ final class SectionController {
         setState(.collapsed)
     }
 
-    /// "Rehide when you're done" (`SmartRehide`): polls while the icons are revealed and collapses as soon as a menu
-    /// or popover the user opened from the menu bar closed, or they switched apps. The delay timer stays as the
+    /// "Rehide when you're done" (`SmartRehide`): polls while the icons are revealed and collapses shortly (about
+    /// 2 s) after a menu or popover the user opened from the menu bar closed, or they switched apps. The delay timer stays as the
     /// fallback. Ended by `cancelAutoRehide` (every state change, editing, a temporary expansion).
     private func startSmartRehide() {
         let start = SmartRehide(start: .now, frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier)

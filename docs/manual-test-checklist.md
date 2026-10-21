@@ -98,11 +98,12 @@ For each item, record: environment (model / displays / macOS version) and result
   space, other items) does not, and clicking the snowflake toggles as usual.
 - [ ] **Rehide when you're done** (In Menu Bar mode, **Automatically rehide** and this switch on; the delay set to
   60 s so it can't interfere): expand, click a revealed FakeItems menu item and pick an entry, or press Esc: the
-  section collapses about 0.4 s after the menu closes and the pointer is out of the menu bar (log `rehiding: a menu or
+  section collapses about 2 s after the menu closes and the pointer is out of the menu bar (log `rehiding: a menu or
   popover opened from the menu bar closed`). Close a menu with Esc while the pointer stays on the menu bar: nothing
   until the pointer leaves. Open a revealed popover item and click **inside** the popover: it stays expanded and the
   popover stays put; close the popover: it collapses. Expand, move the pointer down and ⌘-Tab to another app: it
-  collapses (log `rehiding: the frontmost app changed`). Expand and just move the pointer around the desktop without
+  collapses about 2 s later (log `rehiding: the frontmost app changed`); moving back into the menu bar during those 2 s
+  keeps it open. Expand and just move the pointer around the desktop without
   switching apps: it stays expanded until the delay. With the switch off, only the delay and outside clicks collapse
   (a click inside a revealed popover still doesn't).
 - [ ] Right-click the snowflake: the menu contains "Settings…", "Check for Updates…" and "Quit Frost", each with an

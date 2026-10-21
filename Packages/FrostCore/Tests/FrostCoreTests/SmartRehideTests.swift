@@ -52,6 +52,21 @@ import Testing
         #expect(rehide.update(sample(10_900)) == .collapse(.presentationClosed))
     }
 
+    @Test func theStandardTimingLeavesAMomentBeforeHiding() {
+        // After a menu closes: still shown 1.5 s later (time to look, or to open another icon), hidden at 2 s.
+        var closed = SmartRehide(start: t0, frontmostPID: 10)
+        _ = closed.update(sample(250, inBar: true, open: true))
+        #expect(closed.update(sample(1_750)) == .wait)
+        #expect(closed.update(sample(2_250)) == .collapse(.presentationClosed))
+        // After switching apps: the same pause.
+        var switched = SmartRehide(start: t0, frontmostPID: 10)
+        #expect(switched.update(sample(1_500, front: 20)) == .wait)
+        #expect(switched.update(sample(2_000, front: 20)) == .collapse(.appSwitched))
+        // A popover that appears during the pause must still count: the baseline isn't retaken before either grace.
+        let standard = SmartRehide.Timing.standard
+        #expect(standard.baselineQuiet > max(standard.closeGrace, standard.switchGrace))
+    }
+
     @Test func anAppSwitchCollapsesOnceThePointerIsAway() {
         var rehide = policy()
         #expect(rehide.update(sample(250)) == .wait)

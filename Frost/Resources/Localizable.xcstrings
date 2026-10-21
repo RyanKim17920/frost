@@ -667,12 +667,12 @@
         }
       }
     },
-    "Hides icons as soon as a menu you opened closes, or when you switch apps." : {
+    "Hides icons shortly after a menu you opened closes, or after you switch apps." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打开的菜单关闭后，或切换 App 时，立即隐藏图标。"
+            "value" : "打开的菜单关闭或切换 App 后，稍候片刻即隐藏图标。"
           }
         }
       }

@@ -8,8 +8,9 @@ import Foundation
 ///   and has closed: collapse once the pointer has been out of the menu bar for `closeGrace`. That is the user picking
 ///   an entry, pressing Esc or clicking a popover closed.
 /// - The **frontmost app changed** since the icons were revealed (⌘-Tab, a click on a revealed icon that activated
-///   its app and opened a window): collapse once the pointer has been out of the menu bar for `switchGrace`. The
-///   longer grace leaves room for a popover that appears a little after its app activates.
+///   its app and opened a window): collapse once the pointer has been out of the menu bar for `switchGrace`.
+/// - Both graces leave the user a moment (about 2 s) to look at the revealed icons or open another one before they go,
+///   rather than hiding them the instant the menu closes.
 /// - Never while the pointer is in the menu bar, a presentation is open or a mouse button is held.
 ///
 /// A pure state machine: the caller polls with samples, and owns the window baseline (`acceptsNewBaseline`).
@@ -28,8 +29,10 @@ public struct SmartRehide: Sendable {
             self.baselineQuiet = baselineQuiet
         }
 
-        public static let standard = Timing(closeGrace: .milliseconds(400), switchGrace: .milliseconds(750),
-                                            baselineQuiet: .seconds(1))
+        /// `baselineQuiet` stays longer than both graces: a popover that appears a little after its app activates
+        /// must not be absorbed into the baseline before the collapse is decided.
+        public static let standard = Timing(closeGrace: .seconds(2), switchGrace: .seconds(2),
+                                            baselineQuiet: .milliseconds(2500))
     }
 
     public struct Sample: Equatable, Sendable {
