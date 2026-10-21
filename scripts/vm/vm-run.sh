@@ -29,7 +29,8 @@ vm_ssh "if pgrep -qx Frost; then osascript -e 'tell application id \"dev.frost.F
 [[ $quit_only == 1 ]] && { log "Frost quit"; exit 0; }
 
 vm_ssh "test -d '$GUEST_APP'" || die "$GUEST_APP missing in guest — run scripts/vm/vm-deploy.sh"
-cmd=(open -n "${envs[@]}" --stdout "$GUEST_LOG" --stderr "$GUEST_LOG" "$GUEST_APP")
+# `${envs[@]+…}`: macOS's bash 3.2 treats an empty array as unbound under `set -u`.
+cmd=(open -n ${envs[@]+"${envs[@]}"} --stdout "$GUEST_LOG" --stderr "$GUEST_LOG" "$GUEST_APP")
 [[ ${#args[@]} -gt 0 ]] && cmd+=(--args "${args[@]}")
 vm_ssh ": > '$GUEST_LOG'; $(printf '%q ' "${cmd[@]}")"
 for _ in $(seq 1 20); do vm_ssh "pgrep -qx Frost" && break; sleep 0.5; done

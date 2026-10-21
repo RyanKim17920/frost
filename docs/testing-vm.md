@@ -147,6 +147,7 @@ scripts/vm/vm-up.sh; scripts/vm/vm-deploy.sh; scripts/vm/vm-run.sh   # and the o
 | `dump-status-windows.swift [--all]` | print the status item windows left to right (x, width, onscreen, windowID, title); `--all`: every display's menu bar row (y, height) and the display list — replicas on other displays too |
 | `guest-virtual-display.m w h [hidpi] [right\|left\|above\|below\|x,y]` | add a second display to the guest (CoreGraphics' private `CGVirtualDisplay`, like DeskPad); it exists while the process runs. Compile with `clang -fobjc-arc -framework Foundation -framework CoreGraphics`, start it inside the GUI session (`launchctl asuser`, see `vm_gui`) with `nohup … &`. Not in the VNC framebuffer: `screencapture -x -D 2 out.png` in the guest. Clicks there: `guest-click.swift` with guest coordinates |
 | `guest-drag.swift x0 y0 x1 y1 [steps] [hold]` | slow drag made of real `leftMouseDragged` events (points). Needed for the layout editor: VNC pointer drags start a drag session but never reach SwiftUI drop targets. To find the tiles, read the Settings window's accessibility tree from a guest process (each tile is an `AXImage` labelled "App — item", with its frame), and check the result the same way: editor drops can be scripted and verified without screenshots |
+| `guest-active-space.swift` | prints the active Space (desktop) ID, to tell desktops with the same wallpaper apart (run with `vm-exec.sh --gui`) |
 | `guest-click.swift x y windowID` | Frost's synthetic click (`HIDTAP=1` for the HID tap) |
 | `guest-moveclick.swift …` | Frost's ⌘-drag move followed by a click (reproduces known risk (a)) |
 | `guest-axpress.swift pid [index]` | list / AXPress an app's menu bar extras |
@@ -322,13 +323,16 @@ timing. Evidence (recordings, logs, analysis scripts) goes under `build/vm-shots
   appearing on the menu bar. `dump-status-windows` before and after must list the same order; the parked pointer may
   only blink (hidden for each ⌘-drag). `guest-interrupt` tests a click on the frozen snowflake and a held button.
 - **Spaces (desktops)**: the guest starts with one desktop. Add a second one through Mission Control:
-  `scripts/vm/vm-vnc.sh key ctrl-up`, take a `vm-screenshot.sh` to find the Spaces bar's "+" at the top right (screen
-  points × 2 in VNC), `move <x> <y> click 1` on it, then `key esc`. Switch with `vm-vnc.sh key ctrl-right` /
-  `key ctrl-left` (the default "Move left/right a space" shortcuts; in VNC `ctrl` is ⌃). Open TextEdit on desktop 2
-  so another app is frontmost there, then click the snowflake (`move <x> <y> click 1`) right after a switch and a few
-  seconds later; `vm-logs.sh` shows each click's outcome (`Frost Bar presented`, `Frost Bar closed (<reason>)`,
-  `keeping it open`, `… ignored: <reason>`). For the background editor case, leave Settings on the Layout tab on
-  desktop 2 behind TextEdit.
+  `vm-exec.sh --gui open -a "Mission Control"` (VNC `key ctrl-up` may open App Exposé instead), move the pointer to the
+  top edge to expand the Spaces bar, take a `vm-screenshot.sh` to find its "+" at the top right, `move <x> <y> click 1`
+  on it, then `key esc`. Switch with `vm-vnc.sh key ctrl-right` / `key ctrl-left` (the default "Move left/right a
+  space" shortcuts; in VNC `ctrl` is ⌃). Both desktops show the same wallpaper and widgets, so check which one is
+  active with `scripts/vm/guest-active-space.swift` (compile it in the guest, run it with `vm-exec.sh --gui`; it
+  prints the active Space's ID). `vm-logs.sh` shows each click's outcome (`Frost Bar presented`,
+  `Frost Bar closed (<reason>)`, `keeping it open`, `… ignored: <reason>`); 0.4.1 and earlier log the click itself
+  only at debug level (`Frost icon action`), which `log show` doesn't keep: stream it in the guest with
+  `log stream --level debug`. The desktop-dependent dead snowflake: open Settings (Layout tab) on one desktop, click
+  the wallpaper so Settings stays visible but not key, then click the snowflake on that desktop.
 - **Timing**: don't grab the VNC framebuffer while timing or recording; it slows the guest (clock skips, refresh
   cycles show 0.5–0.8 s outliers). `screencapture -v` only emits frames when the screen changes, so use a probe that
   captures the clock's own window to check that the clock ticks on time. Measure CPU from the cumulative CPU time in

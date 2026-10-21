@@ -158,15 +158,16 @@ The bullets below are macOS 26 unless they say otherwise; macOS 27 is a separate
   length: the stability check must require "already different from before the change" and must never treat
   "unchanged" after a timeout as stable.
 - `NSPanel.isFloatingPanel = true` resets `level` to `.floating`: the Frost Bar panel actually sits at layer 3.
-- **Spaces (desktops)**: the menu bar and its status items are the same on every desktop, but Frost's windows and the
-  focus around them are not. Every window Frost shows over or under the menu bar (the Frost Bar panel, freeze
-  frames) needs `.canJoinAllSpaces`. Focus and Space notifications arrive late after a desktop switch: a
-  `didResignKey` or `activeSpaceDidChangeNotification` within `FrostBarIconClick.focusChangeGrace` of the panel
-  appearing (or while it is still opening) is left over from the switch, and closing on it made the snowflake seem
-  dead on the second desktop. The Settings window is on one desktop only, so the layout editor's occlusion pause makes
-  "editing" desktop-dependent: a Layout tab left open behind other windows held the menu bar in editing state on its
-  own desktop only, and a snowflake click there did nothing (now `IconClickWhileEditing`: the editor yields). Every
-  path that ignores a snowflake click logs why at notice level.
+- **Spaces (desktops)**: the menu bar and its status items are the same on every desktop, but Frost's windows are not.
+  Every window Frost shows over or under the menu bar (the Frost Bar panel, freeze frames) needs `.canJoinAllSpaces`.
+  The Settings window lives on one desktop, and the layout editor pauses while that window is occluded, so editing is
+  **desktop-dependent**: Settings left open on the Layout tab, visible but not key (another app frontmost), holds the
+  menu bar in editing state only while its desktop is showing. Up to 0.4.1 a snowflake click in editing state was
+  silently dropped (`guard !isEditing`), so the snowflake looked dead on that one desktop and came back after opening
+  and closing Settings (reproduced in the VM on 0.4.1 and fixed on later builds: `IconClickWhileEditing`, the editor
+  yields). Ignoring `didResignKey` / `activeSpaceDidChangeNotification` within `FrostBarIconClick.focusChangeGrace` of
+  the panel appearing is defensive only: no late notification was seen in the VM. Every path that ignores a snowflake
+  click logs why at notice level.
 - Items that don't fit under the notch have `isOnScreen == false`, and their x does not reflect the real order;
   moves involving them must happen in the collapsed state (`whileCollapsedForMove`). Some even lie left of the display
   like pushed-out items. They are captured in the background by moving them right of the Frost icon one at a time
