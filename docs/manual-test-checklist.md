@@ -622,6 +622,19 @@ compare the menu bar extras' AX frames and the pixels of the bar (`testing-vm.md
 - [ ] In Menu Bar mode, **Rehide when you're done** behaves as in section 3: expanded, picking an entry in a revealed
   icon's menu (or Esc) collapses once the pointer leaves the menu bar, and ⌘-Tab to another app collapses. Check the
   collapse on the framebuffer.
+- [ ] **Relaunched icons go back into their arranged sections** (Behavior → Keep icons in their sections on): arrange
+  one FakeItems icon in Visible, one in Hidden and one in Always Hidden, close the editor, then quit and relaunch
+  FakeItems (`vm-fake-items.sh quit`, `launch A`). About 1.5 s after the icons reappear the bar reveals once
+  (log: `checking … arranged item(s) that appeared`), every icon the system put in another band is ⌘-dragged back
+  (`moved … back to <section> …: its app re-added it …`), and the bar collapses. In the collapsed framebuffer the
+  Visible icon is drawn, the Hidden and Always Hidden ones are not; the Frost Bar lists the Hidden one and ⌥ the
+  Always Hidden one. An icon already in its band is not moved. Turn the setting off and repeat: nothing moves.
+- [ ] **A relaunch while Frost isn't running**: arrange as above, quit Frost, quit and relaunch FakeItems, launch
+  Frost. Its launch moves the icons back *before* aligning the dividers (log order: `moved … back` before the
+  divider placement lines), and the Hidden divider is not dragged to the far left (the collapsed framebuffer hides the
+  Hidden icons). A never-arranged icon (a new app) at the far left is left alone and doesn't move the dividers either.
+- [ ] A login burst: quit and relaunch FakeItems and FakeItems B together: one reveal checks both. With the mouse button
+  held, the Frost Bar open or a menu open, the check waits and runs afterwards.
 - [ ] Behavior and About are the macOS 26 windows; Check for Updates… works.
 - [ ] English and Simplified Chinese, Light and Dark Mode.
 
@@ -657,6 +670,11 @@ not 26 or 27 until it has been measured). Exercise it in the macOS 26 VM with
   the Frost Bar lists the Hidden section you configured, without claiming physical visibility from AX. The
   layout editor's sections are the arrangement you set there. Forwarding visibly reveals the bar twice to move an
   item out and return it; no freeze-frame quietness is claimed.
+- On macOS 27, keeping a relaunched icon in its section visibly reveals the bar once to read where the system put it
+  (only when an icon you arranged appears, and only while nobody is using the menu bar). Each icon is checked once per
+  appearance: one that the app hides and shows again with the same process isn't checked again. An icon whose identity
+  is shared with another of its app's icons waits until it is unique. A ⌘-drag you make in the menu bar itself is not
+  recorded on 27 (the sections are what you set in Layout), so the next relaunch puts that icon back where Layout has it.
 
 - Without Screen Recording, an icon's identity comes from its AX attributes. An app whose icons have neither an AX
   identifier nor a description (or help) is identified by the order in which it created them; one whose icon's

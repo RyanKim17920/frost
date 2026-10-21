@@ -281,6 +281,13 @@ The bullets below are macOS 26 unless they say otherwise; macOS 27 is a separate
 - **A drop into an empty band is resolved against one of Frost's own dividers**, an invisible 8 pt line while editing;
   the move is verified by the order the bar reports, with "the icon is on the divider's hidden side" as the check
   (`ItemMover.isSatisfiedOn27`) — requiring it to be immediately beside the line is stricter than the bar can express.
+- **Relaunched icons are put back into their arranged sections from a revealed bar** (`ArrangedSectionKeeper`,
+  `NewItemPlacer.keepArrangedSections`): a window ID is synthesized from bundle ID, identity key and pid, so a
+  relaunch is a new window, checked once. The band is read only while every icon is drawn, from the order relative to
+  `AH < AH.Pair < H < H.Pair < snowflake` (anything else: decide nothing); only remembered icons move, never-arranged
+  ones count as Visible wherever they are. Frost's launch runs it inside `alignAccessibilityBoundaries`, **before**
+  the pairs are aligned, and the Hidden pair's anchor ignores icons left of the Always Hidden pair: a far-left icon
+  counted as Visible once dragged the Hidden divider there and revealed the whole Hidden section.
 - **27 uses its own autosave names** so no saved macOS 26 separator position is inherited, and it never writes the 26
   `NSStatusItem Preferred Position` seeds (they place nothing there).
 - **Captures on 27 come from the menu bar strip, not from windows.** Nothing can be addressed per item: there are no

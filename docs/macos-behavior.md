@@ -650,3 +650,21 @@ detector instead of the general settle wait's minimum delay. That wait is pacing
 observed destination order remain required. Post-drag verification reads immediately and retains all ten observations
 with 150 ms between unsuccessful reads. The twenty travel events are spaced 10 ms apart instead of 15 ms; the down
 and pre-release waits are unchanged. The macOS 26 event and settle paths are unchanged.
+
+### Relaunched icons (2026-10-21, not yet measured)
+
+Where macOS 27 puts an icon whose app relaunches has not been measured. A fresh status item takes the first free slot
+of the trailing area (measured for Frost's own items above), which is left of the Always Hidden divider, so the code
+assumes a relaunched icon may land there or anywhere else, and reads it instead of predicting it:
+
+- The check reveals the bar (`revealingForMove`) and classifies each icon by its order relative to Frost's own items,
+  the same order `ItemMover.isSatisfiedOn27` verifies moves with. If the own items are not in the order Frost places
+  them, nothing is decided. An overflowed icon may still report a stale frame while revealed; a move is only posted
+  after a positive hit at the icon's centre (`ItemMover.moveDirect`), so a wrong band never drags a neighbour.
+- A populated band is joined after its last icon (as the layout editor appends), an empty one against its divider,
+  Visible immediately left of the snowflake.
+- The launch check runs before the divider pairs are aligned, and the Hidden pair's alignment ignores icons left of the
+  Always Hidden pair: aligning against a far-left icon counted as Visible would put the Hidden divider at the far left.
+
+To verify in `frost-test-27`: `manual-test-checklist.md`, section 11 (the relaunch items).
+

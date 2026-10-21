@@ -49,8 +49,9 @@ The same Frost Bar and Settings interface, with the macOS 27 differences listed 
   moves away. Images refresh when the panel opens and while editing the layout.
 - **Layout editor:** drag icons between sections or change their order; each drop moves the actual menu bar icon.
   Optional Screen Recording adds captured images on both macOS versions.
-- **Keep icons in their sections (macOS 26):** new apps' icons go to Hidden, and when an app relaunches and macOS
-  puts its icon somewhere else, Frost moves it back. On macOS 27, Frost remembers the sections you set in Layout.
+- **Keep icons in their sections:** when an app relaunches and macOS puts its icon somewhere else, Frost moves it
+  back. On macOS 26, new apps' icons also go to Hidden; on macOS 27, sections are the ones you set in Layout, and
+  checking a relaunched icon briefly reveals the menu bar.
 - **Display modes:** Automatic (the Frost Bar on displays with a notch, in the menu bar elsewhere), In Menu Bar, or
   Frost Bar.
 - **Multiple displays, launch at login, automatic updates** with a quiet reminder dot instead of pop-ups.
@@ -88,7 +89,7 @@ Frost entry and grant it again. Later updates keep the permissions.
 
 | Permission | | Used for | Without it |
 | --- | --- | --- | --- |
-| Accessibility | Required | Identifying icons, moving them in Layout and opening them from the Frost Bar; on macOS 26, also keeping relaunched icons in their sections | The Frost Bar and layout editor ask for it; hiding and showing still work (hidden icons expand in the menu bar) |
+| Accessibility | Required | Identifying icons, moving them in Layout, opening them from the Frost Bar and keeping relaunched icons in their sections | The Frost Bar and layout editor ask for it; hiding and showing still work (hidden icons expand in the menu bar) |
 | Screen Recording | Optional | Real icon images in the Frost Bar and Layout. On macOS 26 they refresh while the Frost Bar is open; on macOS 27 they refresh when it opens and while editing. Icons that cannot be captured keep their app icon | Everything still works; icons are shown as their app's icon (or a system symbol), with a short label where it helps tell them apart |
 
 Onboarding opens on first launch. **Settings → About** shows each permission's status, and **Grant Access** asks for
@@ -114,9 +115,10 @@ reopens the window you were in.
   currently draws. The Frost Bar lists your configured Hidden items (plus Always Hidden on Option-click),
   without a hidden-item count. Forwarding briefly reveals the menu bar to move an item out and back. Captured images
   refresh when the panel opens and while editing, rather than continuously while the panel stays open; items that
-  cannot be captured keep their app icon. Frost remembers your sections but does not automatically move relaunched
-  icons back into them. Hiding and plain-click forwarding have been verified on one unnotched display; right-click and
-  ⌥-click forwarding, notched hardware and multiple displays still need verification on this backend.
+  cannot be captured keep their app icon. A relaunched icon is moved back into the section you set in Layout (new
+  apps' icons stay where macOS puts them), which briefly reveals the menu bar. Hiding and plain-click forwarding have
+  been verified on one unnotched display; right-click and ⌥-click forwarding, moving relaunched icons back, notched
+  hardware and multiple displays still need verification on this backend.
 - On macOS 28 and later, Frost leaves the menu bar alone and shows an unsupported-version notice.
 - With several displays, Frost manages the menu bar you last clicked; the other displays show macOS's copies of it.
 - On macOS 26, macOS doesn't draw icons behind the notch, so Frost gets their images with a short background

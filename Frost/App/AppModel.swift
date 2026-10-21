@@ -93,8 +93,9 @@ final class AppModel {
         sections = SectionController(preferences: preferences, permissions: permissions, scanner: scanner,
                                      backend: backend)
         presence = UserPresenceMonitor()
-        // Automatic new-item placement and section keeping remain 26-only. On 27 the same memory backs
-        // user-requested layout moves and recovery of Frost's interrupted forwards.
+        // Automatic new-item placement and the window-based section keeping are 26-only. On 27 the same memory backs
+        // user-requested layout moves, recovery of Frost's interrupted forwards and moving relaunched icons back into
+        // their arranged sections (`ArrangedSectionKeeper`).
         newItems = NewItemPlacer(scanner: scanner, mover: mover, sections: sections, permissions: permissions,
                                  preferences: preferences, presence: presence,
                                  canMoveItems: backend == .windowList)

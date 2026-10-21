@@ -267,6 +267,9 @@ look of the Frost Bar, prompts.
    forward must survive a failed recovery attempt and clear only after the recorded slot is observed.
 6. In Menu Bar mode, click the snowflake to reveal Hidden and Option-click to reveal Always Hidden too. Behavior and
    About retain the macOS 26 UI. Check Light and Dark Mode.
+7. Quit and relaunch the app of an arranged icon (and once with Frost quit meanwhile). The bar reveals once, the icons
+   the system put elsewhere go back into the bands Layout shows, and the bar collapses; the Frost Bar still lists
+   exactly the configured Hidden icons.
 
 **Watch for:**
 - A Layout drop that does nothing and says nothing, or one that reports a failure although the icon moved.
@@ -275,6 +278,9 @@ look of the Frost Bar, prompts.
   return losing its persisted record.
 - Stale collapsed AX frames changing tile order, or a negative hit being treated as proof that an icon is hidden.
 - The macOS 26 1 pt constraint trick reappearing in a macOS 27 divider's resize callback.
+- A relaunched icon left drawn although Layout has it in Hidden, or missing from the bar and the Frost Bar although
+  Layout has it in Visible; a reveal that repeats every few seconds; the Hidden divider dragged to the far left after
+  Frost's launch.
 
 ### J12. A macOS version without a backend (notice only)
 

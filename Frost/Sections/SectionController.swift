@@ -229,8 +229,21 @@ final class SectionController {
         }
     }
 
-    /// Whether Frost's own items have been placed this launch (`placeOwnItems`).
-    @ObservationIgnored private var hasPlacedOwnItems = false
+    /// Whether Frost's own items have been placed this launch (`placeOwnItems`). Until then, keeping relaunched icons
+    /// in their sections waits (`NewItemPlacer`): the placement itself checks them first, against the dividers where
+    /// the previous run left them.
+    @ObservationIgnored private(set) var hasPlacedOwnItems = false
+
+    /// Frost's own items on macOS 27 (nil on 26), for reading which band the bar has an icon in
+    /// (`ArrangedSectionKeeper`).
+    var accessibilityDividers: ArrangedSectionKeeper.Dividers? {
+        guard backend == .accessibility, let hiddenPair = hidden?.companionName,
+              let alwaysHiddenPair = alwaysHidden?.companionName else { return nil }
+        return ArrangedSectionKeeper.Dividers(alwaysHidden: ownID(alwaysHiddenName),
+                                              alwaysHiddenPair: ownID(alwaysHiddenPair),
+                                              hidden: ownID(hiddenName), hiddenPair: ownID(hiddenPair),
+                                              icon: ownID(iconName))
+    }
 
     /// Re-runs placement when the Accessibility permission arrives (no-op once they are placed).
     private func observeAccessibilityForPlacement() {
@@ -287,15 +300,24 @@ final class SectionController {
 
     /// Places each bounded pair at the boundary of the user's arrangement, with everything narrow. Merely
     /// consuming space at the far left can overflow arbitrary icons without hiding the requested section.
+    ///
+    /// Icons the system re-added elsewhere (a relaunch) are first moved back into their arranged sections
+    /// (`NewItemPlacer.restoreRelaunchedItemsWhileRevealed`), against the dividers where they still are, so the
+    /// alignment below sees a bar that matches the arrangement. The anchors also ignore icons left of the Always Hidden
+    /// pair (`ArrangedSectionKeeper.hiddenAlignmentAnchor`): an icon left out there (a new app's, or one whose restore
+    /// failed) would otherwise drag the Hidden divider to the far left and reveal the whole Hidden section.
     @discardableResult
     func alignAccessibilityBoundaries() async -> Bool {
         guard backend == .accessibility, let model, !model.mover.isBusy,
               let hiddenName2 = hidden?.companionName, let alwaysHiddenName2 = alwaysHidden?.companionName
         else { return backend != .accessibility }
         return await revealingForMove {
+            if !isEditing { await model.newItems.restoreRelaunchedItemsWhileRevealed() }
             await scanner.refreshOwnership()
-            let iconX = ownItems().first { $0.autosaveName == iconName }?.frame.minX ?? .greatestFiniteMagnitude
-            let visible = model.layout[.visible, default: []].first { $0.frame.minX < iconX }
+            let own = ownItems()
+            let iconX = own.first { $0.autosaveName == iconName }?.frame.minX ?? .greatestFiniteMagnitude
+            let pairX = own.first { $0.autosaveName == alwaysHiddenName2 }?.frame.maxX ?? -.greatestFiniteMagnitude
+            let visible = ArrangedSectionKeeper.hiddenAlignmentAnchor(in: model.layout, afterX: pairX, beforeX: iconX)
             let h = await placeOwnItem(named: hiddenName, followedBy: .item(visible?.windowID ?? ownID(iconName)), in: model)
             let hp = await placeOwnItem(named: hiddenName2, followedBy: .right(ofOwnItem: hiddenName), in: model)
             await scanner.refreshOwnership()

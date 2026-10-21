@@ -28,8 +28,9 @@ import Observation
 /// Retries later when moving isn't convenient (checked again before each item of a batch); a failed move is only logged
 /// (no retries).
 ///
-/// On macOS 27 it migrates remembered identities and recovers returns loaded at launch, but does not automatically
-/// place new or relaunched items. User-requested layout drops and click forwarding use the direct AX mechanism.
+/// On macOS 27 it migrates remembered identities, recovers returns loaded at launch, and moves icons the user arranged
+/// back into their sections when their app re-adds them elsewhere (`keepArrangedSections`, `ArrangedSectionKeeper`).
+/// It does not place new apps' icons there: an icon never arranged counts as Visible wherever it is (`ArrangedLayout`).
 @MainActor
 final class NewItemPlacer {
     private let scanner: MenuBarItemScanner
@@ -38,7 +39,8 @@ final class NewItemPlacer {
     private let permissions: PermissionsService
     private let preferences: Preferences
     private let presence: UserPresenceMonitor
-    /// Whether automatic new-item placement and section keeping are available: macOS 26 only.
+    /// Whether automatic new-item placement and the macOS 26 section keeping (`SectionKeeper`) are available: macOS 26
+    /// only. On 27 relaunched icons are kept in their arranged sections by `keepArrangedSections` instead.
     private let canMoveItems: Bool
 
     /// Called by SectionController when it first writes the AH seed.
@@ -158,12 +160,14 @@ final class NewItemPlacer {
         guard !layout.isEmpty else { return }
         store.migrateIdentities(scanner.items)
         guard canMoveItems else {
-            guard !store.keeper.pendingReturns.isEmpty else { return }
-            guard !mover.isBusy, !UserMouseButtons.isAnyHeld, !isPaused(), !ItemClicker.isMenuOnScreen() else {
-                schedule(after: Self.retryDelay)
-                return
+            if !store.keeper.pendingReturns.isEmpty {
+                guard !mover.isBusy, !UserMouseButtons.isAnyHeld, !isPaused(), !ItemClicker.isMenuOnScreen() else {
+                    schedule(after: Self.retryDelay)
+                    return
+                }
+                await Task { @MainActor in await self.recoverAccessibilityReturns(controls: controls) }.value
             }
-            await Task { @MainActor in await self.recoverAccessibilityReturns(controls: controls) }.value
+            await keepArrangedSections()
             return
         }
         guard !mover.isBusy, !UserMouseButtons.isAnyHeld, !isPaused() else {
@@ -274,6 +278,159 @@ final class NewItemPlacer {
             }
         } catch {
             FrostLog.newItems.error("pending AX recovery deferred: \(error, privacy: .public)")
+        }
+    }
+
+    // MARK: - Keeping relaunched icons in their arranged sections (macOS 27)
+
+    /// Icons already checked against their arranged section during this run (`ArrangedSectionKeeper`): each window
+    /// once, when it first appears. Never pruned: an icon that disappears and comes back with the same window (an app
+    /// hiding and showing it) is not checked again, so it never costs a reveal per blink; a relaunch is a new window.
+    private var arrangedChecked: Set<CGWindowID> = []
+    /// The icons waiting for a check and since when that set is unchanged: a burst of launches (login) is checked
+    /// with one reveal once it has settled (`arrangedSettle`).
+    private var arrangedCandidates: Set<CGWindowID> = []
+    private var arrangedCandidatesSince: ContinuousClock.Instant = .now
+    private static let arrangedSettle: Duration = .milliseconds(1500)
+
+    /// macOS 27: when icons the user arranged appear (an app relaunched, or Frost itself launched), reveals the bar
+    /// once, reads which band each one is in and moves the ones the system put elsewhere back
+    /// (`restoreRelaunchedItemsWhileRevealed`). Reveals only when a remembered icon needs checking, and only when
+    /// nobody is using the menu bar: collapsed, the Frost Bar closed, no menu open, no mouse button held, no other
+    /// move, the user present, and Frost's own items placed this launch.
+    private func keepArrangedSections() async {
+        let own = sections.accessibilityDividers?.all ?? []
+        let triage = ArrangedSectionKeeper.triage(items: scanner.items, own: own, checked: arrangedChecked,
+                                                  skipping: Set(store.keeper.pendingReturns.keys),
+                                                  remembered: { self.rememberedSection(of: $0) })
+        arrangedChecked.formUnion(triage.settled)
+        guard !triage.candidates.isEmpty else { return }
+        // The setting is off: accept these icons where they are (as on macOS 26, `SectionKeeper.observe`).
+        guard preferences.keepItemSections else {
+            arrangedChecked.formUnion(triage.candidates.map(\.windowID))
+            return
+        }
+        let ids = Set(triage.candidates.map(\.windowID))
+        if ids != arrangedCandidates {
+            arrangedCandidates = ids
+            arrangedCandidatesSince = .now
+        }
+        let waited = ContinuousClock.now - arrangedCandidatesSince
+        if waited < Self.arrangedSettle {
+            schedule(after: Self.arrangedSettle - waited)
+            return
+        }
+        guard sections.hasPlacedOwnItems, sections.state == .collapsed, !mover.isBusy, !mover.isShuttingDown,
+              !UserMouseButtons.isAnyHeld, !isPaused(), !presence.isAway, !ItemClicker.isMenuOnScreen() else {
+            schedule(after: Self.retryDelay)
+            return
+        }
+        FrostLog.newItems.notice("""
+            checking \(ids.count, privacy: .public) arranged item(s) that appeared, in a revealed menu bar
+            """)
+        // Not inheriting cancellation, like the macOS 26 moves (`evaluate`): the rescans during the reveal re-trigger
+        // `observe`, which cancels the evaluation task.
+        await Task { @MainActor in
+            do {
+                try await self.mover.transaction {
+                    await self.sections.revealingForMove {
+                        await self.restoreRelaunchedItems(givingUpIfUnreadable: true)
+                    }
+                }
+            } catch {
+                FrostLog.newItems.notice("arranged items not checked yet (\(error, privacy: .public)); trying again later")
+            }
+        }.value
+        // A batch cut short (a mouse button, the Frost Bar opening, another move) leaves icons unchecked.
+        let left = ArrangedSectionKeeper.triage(items: scanner.items, own: own, checked: arrangedChecked,
+                                                skipping: Set(store.keeper.pendingReturns.keys),
+                                                remembered: { self.rememberedSection(of: $0) })
+        if !left.candidates.isEmpty, !mover.isShuttingDown { schedule(after: Self.retryDelay) }
+    }
+
+    /// Moves icons the system re-added outside the section the user arranged them in back into it
+    /// (`ArrangedSectionKeeper`). Must run with every icon drawn (`SectionController.revealingForMove`); opens its own
+    /// move transaction, and does nothing when one is running, the setting is off, or on macOS 26. Called by
+    /// `SectionController.alignAccessibilityBoundaries` before it aligns the dividers (Frost's launch, and with the
+    /// layout editor closed).
+    func restoreRelaunchedItemsWhileRevealed() async {
+        guard !canMoveItems, preferences.keepItemSections, permissions.canManageItems, !isPaused(),
+              !presence.isAway else { return }
+        do {
+            try await mover.transaction { await restoreRelaunchedItems(givingUpIfUnreadable: false) }
+        } catch {
+            FrostLog.newItems.notice("arranged items not checked while aligning (\(error, privacy: .public))")
+        }
+    }
+
+    /// The moves themselves; inside a move transaction, with the bar revealed.
+    ///
+    /// `givingUpIfUnreadable`: when the bands can't be read (Frost's own items out of order), mark the icons waiting
+    /// for a check as checked, so a bar Frost can't read never costs a reveal every few seconds. Not while aligning:
+    /// the alignment that follows is what puts the dividers back in order, and the next check can then succeed.
+    private func restoreRelaunchedItems(givingUpIfUnreadable: Bool) async {
+        guard let dividers = sections.accessibilityDividers else { return }
+        await scanner.refreshOwnership()
+        let skipping = Set(store.keeper.pendingReturns.keys)
+        guard let decision = ArrangedSectionKeeper.decide(items: scanner.items, dividers: dividers,
+                                                          checked: arrangedChecked, skipping: skipping,
+                                                          remembered: { self.rememberedSection(of: $0) })
+        else {
+            FrostLog.newItems.notice("""
+                not checking arranged items: Frost's dividers are not in their usual order in the revealed menu bar
+                """)
+            if givingUpIfUnreadable {
+                let triage = ArrangedSectionKeeper.triage(items: scanner.items, own: dividers.all,
+                                                          checked: arrangedChecked, skipping: skipping,
+                                                          remembered: { self.rememberedSection(of: $0) })
+                arrangedChecked.formUnion(triage.candidates.map(\.windowID))
+            }
+            return
+        }
+        arrangedChecked.formUnion(decision.settled)
+        var remaining = Set(decision.restores.map(\.item.windowID))
+        for restore in decision.restores {
+            let item = restore.item
+            if let reason = Self.stopReason(isShuttingDown: mover.isShuttingDown,
+                                            isMouseButtonPressed: UserMouseButtons.isAnyHeld,
+                                            isPaused: isPaused(), isAway: presence.isAway) {
+                FrostLog.newItems.notice("stopped moving arranged items back (\(reason, privacy: .public)); the rest are retried later")
+                break
+            }
+            remaining.remove(item.windowID)
+            // Checked whether or not the move works: a failed one is not retried (never fight the bar).
+            arrangedChecked.insert(item.windowID)
+            // Earlier moves of this batch changed the bar: read the bands again before choosing the anchor.
+            await scanner.refreshOwnership()
+            guard let bands = ArrangedSectionKeeper.physicalSections(of: scanner.items, dividers: dividers) else {
+                FrostLog.newItems.notice("Frost's dividers moved out of order; not moving the remaining arranged items")
+                break
+            }
+            if bands[item.windowID] == restore.to { continue }
+            let destination = ArrangedSectionKeeper.destination(for: restore.to, items: scanner.items, bands: bands,
+                                                                dividers: dividers, excluding: remaining)
+            do {
+                try await mover.move(item.windowID, to: destination, yieldingToMenus: true)
+                FrostLog.newItems.notice("""
+                    moved \(item.bundleID ?? "?", privacy: .public) (\(item.identityKey ?? "?", privacy: .private)) \
+                    back to \(restore.to.rawValue, privacy: .public) \
+                    (\(String(describing: destination), privacy: .public)): its app re-added it \
+                    \(restore.from?.rawValue ?? "between a divider and its pair", privacy: .public)
+                    """)
+            } catch ItemMoveError.mouseButtonHeld {
+                // Nothing was posted: retry this one later.
+                arrangedChecked.remove(item.windowID)
+                FrostLog.newItems.notice("stopped moving arranged items back (a mouse button is held); retried later")
+                break
+            } catch is CancellationError {
+                arrangedChecked.remove(item.windowID)
+                break
+            } catch {
+                FrostLog.newItems.error("""
+                    failed to move \(item.bundleID ?? "?", privacy: .public) back to \
+                    \(restore.to.rawValue, privacy: .public): \(error, privacy: .public)
+                    """)
+            }
         }
     }
 
