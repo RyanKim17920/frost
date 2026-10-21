@@ -27,6 +27,18 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         controller.show()
     }
 
+    /// Whether the user is working in Settings: Frost is active and the window is key.
+    static var isWindowKey: Bool {
+        guard let shared else { return false }
+        return NSApp.isActive && shared.window.isKeyWindow
+    }
+
+    /// A click on the Frost icon while the window sits open on the Layout tab behind other windows: the editor gives
+    /// the menu bar back (ends editing, collapsing it) until the window becomes key again (`IconClickWhileEditing`).
+    static func yieldEditorToFrostIcon() {
+        shared?.setPaused(.yieldedToFrostIcon, true)
+    }
+
     /// The settings window, if it has been created (it is reused, so it may be closed), and its selected tab.
     static var current: (window: NSWindow, tab: SettingsTab)? {
         guard let shared else { return nil }
@@ -78,6 +90,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         case appHidden
         /// The window is open but entirely covered (`NSWindow.occlusionState`), e.g. by a full-screen app.
         case occluded
+        /// The Frost icon was clicked while the window was in the background (`yieldEditorToFrostIcon`); ends when the
+        /// window becomes key again.
+        case yieldedToFrostIcon
     }
 
     init(model: AppModel, initialTab: SettingsTab = .layout) {
@@ -338,6 +353,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         // window reports it directly.)
         saveTopLeft()
         isAwaitingKey = false
+        // A yield to the Frost icon lasts only while the window stays open; the next `show()` starts editing as usual.
+        pauseReasons.remove(.yieldedToFrostIcon)
         layoutEditor.setWindowVisible(false)
     }
 
@@ -380,6 +397,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
+        if pauseReasons.contains(.yieldedToFrostIcon) {
+            // The user is back in Settings after a click on the Frost icon took the menu bar: resume editing (unless
+            // something else still pauses it).
+            setPaused(.yieldedToFrostIcon, false)
+            return
+        }
         guard pauseReasons.isEmpty else { return }
         if isAwaitingKey {
             // The newly opened window actually reached the front: only now start editing (if the Layout tab is selected).

@@ -23,4 +23,14 @@ public struct UserPresence: Equatable, Sendable {
         if active { reasons.insert(reason) } else { reasons.remove(reason) }
         return wasAway != isAway
     }
+
+    /// The user just clicked one of Frost's own controls, so they are at the Mac whatever the notifications said: a
+    /// reason whose end was never reported (a missed wake or unlock) would otherwise keep the Frost Bar from opening
+    /// until the next sleep. Returns whether `isAway` changed.
+    @discardableResult
+    public mutating func confirmPresent() -> Bool {
+        let wasAway = isAway
+        reasons.removeAll()
+        return wasAway
+    }
 }

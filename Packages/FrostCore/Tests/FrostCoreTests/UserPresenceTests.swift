@@ -41,4 +41,15 @@ import Testing
         // An unmatched "ended" (e.g. Frost launched while the screen was locked and missed the start) is harmless.
         #expect(!update(&presence, .screenLocked, false))
     }
+
+    /// A physical click on the Frost icon proves the user is at the Mac: a reason whose end Frost missed (a wake
+    /// notification that never came) must not keep the Frost Bar from opening.
+    @Test func confirmingPresenceClearsStaleReasons() {
+        var presence = UserPresence(reasons: [.systemSleeping, .displaysAsleep])
+        let changed = presence.confirmPresent()
+        #expect(changed)
+        #expect(!presence.isAway)
+        let again = presence.confirmPresent()
+        #expect(!again)
+    }
 }

@@ -1046,7 +1046,10 @@ final class SectionController {
     // MARK: - Frost icon
 
     @objc private func iconClicked(_ sender: NSStatusBarButton) {
-        guard let event = NSApp.currentEvent else { return }
+        guard let event = NSApp.currentEvent else {
+            FrostLog.sections.notice("Frost icon action ignored: it came with no current event")
+            return
+        }
         // Unsupported macOS: every click shows the menu with the notice; nothing toggles.
         guard isManagingMenuBar else {
             showMenu()
@@ -1096,11 +1099,15 @@ final class SectionController {
     /// Right-click / Control-click -> menu; click -> Frost Bar (per the effective display mode of `screen`, the display
     /// clicked on) or toggle collapsed <-> expanded; with ⌥ -> expandedAll.
     private func handleIconClick(context: Bool, option: Bool, screen: NSScreen?) {
+        model?.presence.userClickedFrostIcon()
         if context {
             showMenu()
             return
         }
-        guard !isEditing else { return }
+        if isEditing {
+            handleIconClickWhileEditing(option: option, screen: screen)
+            return
+        }
         // The mode depends on Accessibility: read it now, a grant made in System Settings while Frost wasn't active
         // may not have reached the cached value yet.
         permissions.refresh()
@@ -1118,6 +1125,41 @@ final class SectionController {
         }
         setState(state.afterIconClick(option: option))
     }
+
+    /// A plain click while the layout editor holds the menu bar (`IconClickWhileEditing`): ignored while the user works
+    /// in the editor; otherwise the editor yields until its window is used again, and the click is handled once the
+    /// menu bar has left editing.
+    private func handleIconClickWhileEditing(option: Bool, screen: NSScreen?) {
+        let editorIsKey = model?.isLayoutEditorWindowKey() ?? false
+        switch IconClickWhileEditing.decide(editorWindowIsKey: editorIsKey) {
+        case .ignore:
+            FrostLog.sections.notice("Frost icon click ignored: the layout editor is in use (Settings is the key window)")
+        case .yieldEditor:
+            FrostLog.sections.notice("""
+                Frost icon clicked while the layout editor holds the menu bar from a background Settings window; \
+                pausing the editor until Settings is used again
+                """)
+            model?.yieldLayoutEditor()
+            editorYieldTask?.cancel()
+            editorYieldTask = Task { [weak self] in
+                let deadline = ContinuousClock.now + IconClickWhileEditing.yieldTimeout
+                while self?.isEditing == true {
+                    guard ContinuousClock.now < deadline else {
+                        FrostLog.sections.notice("""
+                            Frost icon click dropped: the menu bar was still in editing state after \
+                            \(IconClickWhileEditing.yieldTimeout, privacy: .public) (a move in progress?)
+                            """)
+                        return
+                    }
+                    do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
+                }
+                self?.editorYieldTask = nil
+                self?.handleIconClick(context: false, option: option, screen: screen)
+            }
+        }
+    }
+
+    @ObservationIgnored private var editorYieldTask: Task<Void, Never>?
 
     private func showMenu() {
         guard let iconItem, let button = iconItem.button else { return }

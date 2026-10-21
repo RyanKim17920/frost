@@ -116,7 +116,18 @@ final class FrostBarController {
         app.obscuredItemsChanged = { [weak self] in self?.scheduleObscuredCapture() }
         observers.append(workspace.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil,
                                                queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.close(animated: false, reason: "active Space changed") }
+            MainActor.assumeIsolated {
+                guard let self, self.isOpen else { return }
+                guard FrostBarIconClick.closesOnSpaceChange(shownAt: self.shownAt, now: .now) else {
+                    let phase = self.shownAt == nil ? "still opening" : "just appeared"
+                    FrostLog.frostBar.notice("""
+                        active Space changed while the Frost Bar is \(phase, privacy: .public); keeping it open (the \
+                        panel is on every Space)
+                        """)
+                    return
+                }
+                self.close(animated: false, reason: "active Space changed")
+            }
         })
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
@@ -150,15 +161,21 @@ final class FrostBarController {
     /// instead (a short fade and height change, see `FrostBarContent`). While the panel is still opening (waiting for a
     /// lingering item to move back) or has only just appeared, a click doesn't close it (`FrostBarIconClick`).
     func toggle(showAlwaysHidden: Bool) {
-        let phase: FrostBarIconClick.Phase = !isOpen ? .closed : shownAt.map { .presented(at: $0) } ?? .opening
-        switch FrostBarIconClick.decide(phase: phase, option: showAlwaysHidden,
-                                        showingAlwaysHidden: model.showAlwaysHidden, now: .now) {
+        let phase: FrostBarIconClick.Phase = !isOpen
+            ? .closed : shownAt.map { .presented(at: $0) } ?? .opening(since: openRequestedAt ?? .now)
+        let action = FrostBarIconClick.decide(phase: phase, option: showAlwaysHidden,
+                                              showingAlwaysHidden: model.showAlwaysHidden, now: .now)
+        switch action {
         case .open(let showAlwaysHidden):
             open(showAlwaysHidden: showAlwaysHidden)
         case .close:
             close(reason: "Frost icon clicked")
-        case .keepOpening(let showAlwaysHidden):
-            FrostLog.frostBar.notice("Frost icon clicked while the Frost Bar is opening; keeping it open")
+        case .keepOpening(let showAlwaysHidden), .endStalledWait(let showAlwaysHidden):
+            if case .endStalledWait = action {
+                endStalledOpeningWait()
+            } else {
+                FrostLog.frostBar.notice("Frost icon clicked while the Frost Bar is opening; keeping it open")
+            }
             guard showAlwaysHidden == true, !model.showAlwaysHidden else { return }
             if shownAt == nil {
                 // Not on screen yet: present with the section (live refresh starts once presented).
@@ -169,6 +186,26 @@ final class FrostBarController {
         case .setAlwaysHidden(let show):
             setAlwaysHidden(show)
         }
+    }
+
+    /// The open has waited `FrostBarIconClick.stalledOpening` and the user clicked again. What it waits for that can
+    /// be stuck is the previous click forward, waiting for its menu / popover to close: end that forward the way
+    /// quitting does (cancelling it closes the presentation it opened and moves the item back), so the panel appears.
+    private func endStalledOpeningWait() {
+        let waited = openRequestedAt.map { LiveRefreshStats.Timing.ms(.now - $0) } ?? "?"
+        guard let activation = activationTask else {
+            let reason = obscuredCaptureTask != nil ? "a background capture" : "the menu bar to settle"
+            FrostLog.frostBar.notice("""
+                Frost icon clicked while the Frost Bar has been opening for \(waited, privacy: .public), waiting for \
+                \(reason, privacy: .public); keeping it open
+                """)
+            return
+        }
+        FrostLog.frostBar.notice("""
+            Frost icon clicked while the Frost Bar has been opening for \(waited, privacy: .public), waiting for the \
+            previous click forward; ending that forward
+            """)
+        activation.cancel()
     }
 
     /// Shows / hides the Always Hidden section of the open panel.
@@ -202,7 +239,15 @@ final class FrostBarController {
     private static let sectionFadeOut: TimeInterval = 0.1
 
     func open(showAlwaysHidden: Bool) {
-        guard !isOpen, !app.presence.isAway else { return }
+        guard !isOpen else {
+            FrostLog.frostBar.notice("Frost Bar open ignored: it is already open")
+            return
+        }
+        guard !app.presence.isAway else {
+            let reasons = app.presence.presence.reasons.map(\.rawValue).sorted().joined(separator: ", ")
+            FrostLog.frostBar.notice("Frost Bar open ignored: the user is away (\(reasons, privacy: .public))")
+            return
+        }
         isOpen = true
         // A previous forward's item may be lingering in the Visible section: move it back now.
         endLingerRequested = true
@@ -397,6 +442,14 @@ final class FrostBarController {
                     Frost Bar resigned key (frontmost app \(front, privacy: .public), Frost key window \
                     \(key, privacy: .public))
                     """)
+                guard FrostBarIconClick.closesOnResignKey(shownAt: self.shownAt, now: .now) else {
+                    let phase = self.shownAt == nil ? "while still opening" : "right after appearing"
+                    FrostLog.frostBar.notice("""
+                        keeping the Frost Bar open: it resigned key \(phase, privacy: .public), before the user \
+                        could have switched away
+                        """)
+                    return
+                }
                 self.close(reason: "panel resigned key")
             }
         })

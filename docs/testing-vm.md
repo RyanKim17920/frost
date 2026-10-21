@@ -321,6 +321,14 @@ timing. Evidence (recordings, logs, analysis scripts) goes under `build/vm-shots
   thousands of such pixels: an item moving, the snowflake shifting, the lifted item's drag image, or the pointer
   appearing on the menu bar. `dump-status-windows` before and after must list the same order; the parked pointer may
   only blink (hidden for each ⌘-drag). `guest-interrupt` tests a click on the frozen snowflake and a held button.
+- **Spaces (desktops)**: the guest starts with one desktop. Add a second one through Mission Control:
+  `scripts/vm/vm-vnc.sh key ctrl-up`, take a `vm-screenshot.sh` to find the Spaces bar's "+" at the top right (screen
+  points × 2 in VNC), `move <x> <y> click 1` on it, then `key esc`. Switch with `vm-vnc.sh key ctrl-right` /
+  `key ctrl-left` (the default "Move left/right a space" shortcuts; in VNC `ctrl` is ⌃). Open TextEdit on desktop 2
+  so another app is frontmost there, then click the snowflake (`move <x> <y> click 1`) right after a switch and a few
+  seconds later; `vm-logs.sh` shows each click's outcome (`Frost Bar presented`, `Frost Bar closed (<reason>)`,
+  `keeping it open`, `… ignored: <reason>`). For the background editor case, leave Settings on the Layout tab on
+  desktop 2 behind TextEdit.
 - **Timing**: don't grab the VNC framebuffer while timing or recording; it slows the guest (clock skips, refresh
   cycles show 0.5–0.8 s outliers). `screencapture -v` only emits frames when the screen changes, so use a probe that
   captures the clock's own window to check that the clock ticks on time. Measure CPU from the cumulative CPU time in

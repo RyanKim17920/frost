@@ -34,6 +34,11 @@ final class AppModel {
     @ObservationIgnored var openOnboarding: () -> Void = {}
     /// Shows or hides the Frost Bar. Set by AppDelegate.
     @ObservationIgnored var toggleFrostBar: (_ includeAlwaysHidden: Bool) -> Void = { _ in }
+    /// Whether the user is working in the layout editor (the Settings window is key). Set by AppDelegate.
+    @ObservationIgnored var isLayoutEditorWindowKey: () -> Bool = { false }
+    /// Has the layout editor give the menu bar back until its window is used again (`IconClickWhileEditing`). Set by
+    /// AppDelegate.
+    @ObservationIgnored var yieldLayoutEditor: () -> Void = {}
 
     @ObservationIgnored private var opportunisticCapture: Task<Void, Never>?
 

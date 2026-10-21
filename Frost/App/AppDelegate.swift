@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = AppModel(backend: RunningOS.backend)
         self.model = model
         model.showSettings = { [unowned model] tab in SettingsWindowController.show(model: model, tab: tab) }
+        model.isLayoutEditorWindowKey = { SettingsWindowController.isWindowKey }
+        model.yieldLayoutEditor = { SettingsWindowController.yieldEditorToFrostIcon() }
         let menus = MainMenu.make(target: self)
         guard model.isMenuBarSupported else {
             startUnsupported(model, menus: menus)

@@ -46,6 +46,17 @@ final class UserPresenceMonitor {
         observers.append((center, observer))
     }
 
+    /// The user clicked the Frost icon: they are here, whatever the notifications said (`UserPresence.confirmPresent`).
+    func userClickedFrostIcon() {
+        let stale = presence.reasons.map(\.rawValue).sorted().joined(separator: ", ")
+        guard presence.confirmPresent() else { return }
+        FrostLog.app.notice("""
+            user back (the Frost icon was clicked); clearing away reasons whose end was never reported: \
+            \(stale, privacy: .public)
+            """)
+        NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
+    }
+
     private func update(_ reason: UserPresence.Reason, _ active: Bool) {
         guard presence.update(reason, active) else { return }
         let reasons = presence.reasons.map(\.rawValue).sorted().joined(separator: ", ")

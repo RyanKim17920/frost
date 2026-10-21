@@ -147,6 +147,12 @@ For each item, record: environment (model / displays / macOS version) and result
   into it: editing resumes. Lock the screen (⌃⌘Q) or let the displays sleep: editing ends and the editor's periodic
   refreshes stop (log `user away (screenLocked)` / `(displaysAsleep)`); after unlocking, editing resumes once the
   window is key (log `user back`).
+- [ ] **Editor left in the background**: open the Layout tab, then click another app's window so Settings stays
+  partly visible behind it (the menu bar stays in editing state). Click the snowflake: the editor gives the menu bar
+  back (log `pausing the editor until Settings is used again`) and the click does what it normally does (the Frost Bar
+  opens, or the hidden icons expand). Click into the Settings window: editing resumes. With Settings frontmost, a
+  snowflake click is ignored with log `the layout editor is in use`. Repeat on a second desktop (Space) with the
+  Settings window on that desktop.
 - [ ] Revoke Accessibility: the editor shows an "Accessibility Required" placeholder that updates as permissions
   change and does **not** expand the menu bar; granting while the tab is visible starts the editor (menu bar expands
   once); its button requests Accessibility directly (no onboarding window). Settings reopens on the tab last used.
@@ -350,6 +356,15 @@ For each item, record: environment (model / displays / macOS version) and result
   and focus isn't taken by the app.
 - [ ] Quit Frost while a menu is open (e.g. `osascript -e 'quit app "Frost"'`): quitting is deferred; the item moves
   back first, then Frost quits.
+- [ ] **Second desktop (Space)**: with two desktops on the same display, open the Frost Bar on desktop 1, then switch
+  to desktop 2 (⌃→) and click the snowflake right away, and again after a few seconds; repeat with another app
+  frontmost on desktop 2, with Frost's Settings window left open on desktop 1, and in a full-screen app's Space. Every
+  click opens the panel (log `Frost Bar presented …`), it stays open (no `Frost Bar closed (panel resigned key)` or
+  `(active Space changed)` within a second of appearing; `keeping it open` lines are fine), forwarding a click works,
+  and switching desktops while it is open (after a second) closes it.
+- [ ] **A stuck open ends on the next click**: forward a click to an item whose popover doesn't close on an outside
+  click, then click the snowflake twice, more than 2 s apart: the second click ends the forward (log `ending that
+  forward`; its popover closes and the item moves back) and the panel appears.
 - [ ] Empty states: with no hidden items, the panel says there are no hidden items and offers a button to arrange
   items; with missing permissions, it says permissions are needed and offers to open onboarding; when the menu bar
   can't be read, it says the menu bar items can't be read and offers a refresh button (each is a centered badge +
