@@ -9,9 +9,9 @@ release notes on GitHub and in the in-app update window.
 ## [0.4.2] - 2026-10-21
 
 ### Added
-- **Rehide when you're done** (Settings → Behavior, on by default): icons revealed in the menu bar hide again as soon
-  as a menu or popover you opened from them closes, or when you switch to another app. The rehide delay stays as the
-  fallback.
+- **Rehide when you're done** (Settings → Behavior, on by default): icons revealed in the menu bar hide again shortly
+  (about 2 s) after a menu or popover you opened from them closes, or after you switch to another app; moving the
+  pointer back into the menu bar keeps them shown. The rehide delay stays as the fallback.
 - On macOS 27, right-click and Control-click on an icon in the Frost Bar open its secondary menu, as on macOS 26.
   An ⌥-click arrives as a plain click there, because macOS 27 delivers menu bar clicks without modifier keys.
 - On macOS 27, when an app relaunches and its icon lands outside the section you set in Layout, Frost moves it back
