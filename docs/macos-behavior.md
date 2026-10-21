@@ -631,9 +631,13 @@ forward, pointer linger and return passed too. An early post-return AX hit was r
 hits and the framebuffer corroborated collapse. Neither that early sample nor a timer certifies hidden completion.
 
 The relayout is visible; no freeze-frame quietness is claimed. Only primary clicks were qualified in this correction.
-Right-click, Control-click and ⌥-click forwarding were implemented afterwards on the same path (a HID right click, and
-a left click with the Option key held down for real around it, because the snowflake measurement showed the
-redelivered action losing Option); they have not been measured in the VM yet (`manual-test-checklist.md`, section 11).
+Right-click and Control-click forwarding were added afterwards on the same path and measured on 2026-10-21 (FakeItems'
+`FIDual`): both arrive as a right click and open the item's secondary menu at the moved icon, then linger and return
+as a plain click does. **Option does not survive**: an ⌥-click posted with `.maskAlternate`, and also with the Option
+key held down for real around it (`flagsChanged` key-down / key-up on the HID tap), reached the app as
+`option=false`: the bar redelivers the click without modifier flags, as it does for the snowflake's own action. So an
+⌥-click is forwarded as the plain click the app would receive anyway (`ForwardedClick.deliverable(on:)`), and no
+synthetic key is posted.
 The return record keeps the existing UserDefaults format, with launch recovery and clear after observed placement;
 this is not a durable power-loss journal. Notched hardware and multiple displays remain unqualified on this backend.
 
@@ -651,11 +655,17 @@ observed destination order remain required. Post-drag verification reads immedia
 with 150 ms between unsuccessful reads. The twenty travel events are spaced 10 ms apart instead of 15 ms; the down
 and pre-release waits are unchanged. The macOS 26 event and settle paths are unchanged.
 
-### Relaunched icons (2026-10-21, not yet measured)
+### Relaunched icons (2026-10-21)
 
-Where macOS 27 puts an icon whose app relaunches has not been measured. A fresh status item takes the first free slot
-of the trailing area (measured for Frost's own items above), which is left of the Always Hidden divider, so the code
-assumes a relaunched icon may land there or anywhere else, and reads it instead of predicting it:
+Measured in `frost-test-27` (macOS 27.0, one unnotched display) with FakeItems, three of its icons arranged as Hidden,
+Hidden and Always Hidden: quitting and relaunching FakeItems while Frost ran put every icon back in **its previous
+slot** (the system restored them; the collapsed framebuffer was unchanged). Frost's check revealed the bar once
+(`checking 3 arranged item(s) that appeared`) and moved nothing. The move path was exercised by making the memory
+disagree with the bar (one remembered section edited while Frost was quit): at launch the icon was ⌘-dragged to
+Visible (left of the snowflake) and, in a second run, back into Hidden after the band's last icon, each verified by
+the order the bar reports, before the divider placement lines, with the dividers left in place. Where a relaunched
+icon lands when macOS doesn't restore its slot was not observed, so the code still reads the bar instead of predicting
+it:
 
 - The check reveals the bar (`revealingForMove`) and classifies each icon by its order relative to Frost's own items,
   the same order `ItemMover.isSatisfiedOn27` verifies moves with. If the own items are not in the order Frost places
@@ -666,5 +676,5 @@ assumes a relaunched icon may land there or anywhere else, and reads it instead 
 - The launch check runs before the divider pairs are aligned, and the Hidden pair's alignment ignores icons left of the
   Always Hidden pair: aligning against a far-left icon counted as Visible would put the Hidden divider at the far left.
 
-To verify in `frost-test-27`: `manual-test-checklist.md`, section 11 (the relaunch items).
+Checks: `manual-test-checklist.md`, section 11 (the relaunch items).
 

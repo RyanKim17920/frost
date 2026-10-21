@@ -273,8 +273,8 @@ The bullets below are macOS 26 unless they say otherwise; macOS 27 is a separate
   On 27 the snowflake action also reads currently held modifiers: the redelivered event can lose Option.
   Failed returns retain the record; launch recovery resolves its unique identities before retrying. This uses the
   existing UserDefaults format and does not promise power-loss durability. Right / Control-clicks forward as a HID
-  right click and ⌥-clicks hold the Option key for real around the click (`ForwardedClick.events(holdingModifierKeys:)`),
-  since the redelivered click can lose the flags it was posted with; only primary clicks were measured in the VM.
+  right click (measured); an ⌥-click is forwarded as a plain click (`ForwardedClick.deliverable(on:)`): the bar
+  redelivers clicks without modifier flags, even with Option held for real (measured), so don't try to synthesize it.
 - **Frost's own items are identified by the names they were created with** (`Frost27.HiddenDivider`,
   `Frost27.AlwaysHiddenDivider` and their `.Pair` companions), not through `FrostControlLocator`: on 27
   a divider held as a thin line reports an Accessibility frame that differs from its window's. When this broke, a layout drop silently did nothing, because

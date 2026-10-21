@@ -6,6 +6,22 @@ release notes on GitHub and in the in-app update window.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-21
+
+### Added
+- **Rehide when you're done** (Settings → Behavior, on by default): icons revealed in the menu bar hide again as soon
+  as a menu or popover you opened from them closes, or when you switch to another app. The rehide delay stays as the
+  fallback.
+- On macOS 27, right-click and Control-click on an icon in the Frost Bar open its secondary menu, as on macOS 26.
+  An ⌥-click arrives as a plain click there, because macOS 27 delivers menu bar clicks without modifier keys.
+- On macOS 27, when an app relaunches and its icon lands outside the section you set in Layout, Frost moves it back
+  (Settings → Behavior → Keep icons in their sections). This briefly reveals the menu bar.
+
+### Fixed
+- The snowflake no longer ignores clicks on the desktop where the Settings window is open on the Layout tab behind
+  other windows. The layout editor now gives the menu bar back until you return to Settings.
+- Clicking inside a popover opened from a revealed icon no longer hides the icons from under it.
+
 ## [0.4.1] - 2026-10-11
 
 ### Fixed
