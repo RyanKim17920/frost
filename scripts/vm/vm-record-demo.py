@@ -3,9 +3,11 @@
 GIF"). Recording inside the guest (`screencapture -v`) makes macOS show its purple screen-recording indicator in the
 menu bar; the VNC framebuffer has no such indicator.
 
-  ~/.local/share/frost-vm/venv/bin/python -W ignore scripts/vm/vm-record-demo.py OUTDIR SNOWFLAKE_X SNOWFLAKE_Y TILE_X TILE_Y
+  "$FROST_VM_STATE"/venv/bin/python -W ignore scripts/vm/vm-record-demo.py OUTDIR SNOWFLAKE_X SNOWFLAKE_Y TILE_X TILE_Y
 
-Coordinates are guest points (global top-left origin); the VNC framebuffer is 2x. A drive thread moves the pointer
+Coordinates are guest points (global top-left origin). The VNC framebuffer is 1x or 2x depending on how the guest came
+up (`docs/testing-vm.md`, "How it works"): the scale is the framebuffer width divided by the guest's width in points
+(`FROST_VM_POINTS_WIDTH`, default 1728, the width `vm-setup.sh` configures). A drive thread moves the pointer
 and clicks through VNC input (smooth glides at ~100 Hz, the snowflake click, a rest on the tile, the tile click, a
 pause on the opened menu, Esc, the pointer glides away) while a second thread saves the top-right 480x328 pt region
 as OUTDIR/f<n>.bmp at a fixed 25 fps from the client's framebuffer copy. The pointer is not part of the VNC framebuffer, so the
@@ -18,14 +20,19 @@ from twisted.internet import reactor
 from vncdotool import api
 
 out = sys.argv[1]
-snow = (float(sys.argv[2]) * 2, float(sys.argv[3]) * 2)
-tile = (float(sys.argv[4]) * 2, float(sys.argv[5]) * 2)
-ITEM = (3000.0, 30.0)                       # where the forwarded item ends up (pointer left on it), pixels
-X0, Y0, W, H = 2496, 0, 960, 656            # region in framebuffer pixels (top right 480x328 pt)
 os.makedirs(out, exist_ok=True)
-log = open(os.path.expanduser("~/.local/share/frost-vm/run.log")).read()
+state = os.environ.get("FROST_VM_STATE", os.path.expanduser("~/.local/share/frost-vm"))
+log = open(os.path.join(state, "run.log")).read()
 pw, port = re.findall(r"vnc://:([^@]*)@127\.0\.0\.1:(\d+)", log)[-1]
 c = api.connect(f"127.0.0.1::{port}", password=pw)
+c.refreshScreen()
+# Framebuffer pixels per point (1 or 2): every position below is in points and scaled by it.
+S = round(c.protocol.screen.size[0] / float(os.environ.get("FROST_VM_POINTS_WIDTH", "1728")))
+snow = (float(sys.argv[2]) * S, float(sys.argv[3]) * S)
+tile = (float(sys.argv[4]) * S, float(sys.argv[5]) * S)
+ITEM = (1500.0 * S, 15.0 * S)               # where the forwarded item ends up (pointer left on it)
+REST = (1150.0 * S, 450.0 * S)              # where the pointer starts and ends
+X0, Y0, W, H = 1248 * S, 0, 480 * S, 328 * S  # region: the top right 480x328 pt
 
 # A macOS-like arrow (hot spot at its tip), drawn at 2x.
 def make_arrow():
@@ -40,8 +47,10 @@ def make_arrow():
     d2.polygon([(x + 3, y + 5) for x, y in [(0, 0), (0, 25), (6, 19), (11, 30), (14, 28), (10, 17), (18, 17)]], fill=(0, 0, 0, 255))
     return big
 ARROW = make_arrow()
+if S != 2:
+    ARROW = ARROW.resize((ARROW.width * S // 2, ARROW.height * S // 2), Image.LANCZOS)
 
-pointer = [2300.0, 900.0]
+pointer = list(REST)
 visible = [True]
 stop = threading.Event()
 t0 = time.time()
@@ -65,14 +74,14 @@ def drive():
     glide(snow, 0.9); time.sleep(0.25)
     c.mouseDown(1); time.sleep(0.07); c.mouseUp(1)
     time.sleep(1.0)
-    glide((tile[0] + 60, tile[1] + 36), 0.5)
+    glide((tile[0] + 30 * S, tile[1] + 18 * S), 0.5)
     glide(tile, 0.5); time.sleep(0.3)
     c.mouseDown(1); time.sleep(0.07); c.mouseUp(1)
     # Frost's click forwarding moves the real pointer onto the moved item and leaves it there; VNC doesn't know.
     time.sleep(0.2); pointer[0], pointer[1] = ITEM
     time.sleep(1.5)
     c.keyPress("esc"); time.sleep(0.6)
-    glide((2300, 900), 0.7)
+    glide(REST, 0.7)
     time.sleep(3.2)
     stop.set()
 
@@ -88,7 +97,6 @@ def stream_updates():
     reactor.callFromThread(lambda: p.framebufferUpdateRequest(incremental=True))
 
 FPS = 25
-c.refreshScreen()
 stream_updates()
 th = threading.Thread(target=drive, daemon=True); th.start()
 n = 0
@@ -99,7 +107,7 @@ while not stop.is_set():
     screen = c.protocol.screen
     img = screen.crop((X0, Y0, X0 + W, Y0 + H)).convert("RGBA")
     px, py = int(pointer[0] - X0), int(pointer[1] - Y0)
-    if -30 < px < W and -44 < py < H:
+    if -ARROW.width < px < W and -ARROW.height < py < H:
         img.paste(ARROW, (px, py), ARROW)
     img.convert("RGB").save(os.path.join(out, f"f{n:05d}.bmp"))
     n += 1

@@ -34,7 +34,7 @@ Scripts (all in `scripts/vm/`, each has a usage header):
 | `vm-run.sh [-e K=V]... [--quit] [-- args]` | quit Frost (AppleScript quit, then kill), launch with `open -n --env ... --stdout/--stderr /tmp/frost-stdout.log`. Env names must be 2+ chars (`open --env` ignores 1-char names). |
 | `vm-exec.sh [cmd]` | run a shell command in the guest as `admin` over SSH; no args = interactive shell; `--gui cmd...` runs it inside the Aqua session via `launchctl asuser` |
 | `vm-screenshot.sh [--guest] <out.png>` | default: grab the VM framebuffer through VNC (no guest permissions involved); `--guest`: run `screencapture` in the guest and copy the PNG back |
-| `vm-vnc.sh <vncdotool cmds>` | mouse/keyboard input into the VM (e.g. `move 2956 30 click 1`, `key cmd-space`, `type text`). Coordinates are framebuffer pixels = points × 2. |
+| `vm-vnc.sh [--points] <vncdotool cmds>` | mouse/keyboard input into the VM (e.g. `--points move 1479 14 click 1`, `key cmd-space`, `type text`). Coordinates are framebuffer pixels = points × the framebuffer scale (2 or 1, see "VM config"); with `--points`, `move` / `mousemove` / `drag` take guest points and are converted at the real scale. |
 | `vm-fake-items.sh deploy\|launch [A\|B\|D] [extra] [polite\|net\|live]\|quit\|reset\|log` | build / install / run the FakeItems test apps (`Tools/FakeItems`): `dev.frost.FakeItems` (9 items: menus, 2 popovers, a no-op, the ticking `FIClock`) and `dev.frost.FakeItemsB` (2 items); `extra` adds N more text items; `net` makes `FIClock` show network-speed-like text whose width changes every second (like a network-speed item); `live` adds `FILiveHelp` / `FILiveDesc` (a number in the AX help / description that changes every second) and `FIBlink` (hidden 4 s out of every 20 s), for identity stability tests; `launch D` runs `dev.frost.FakeItemsDemo`, shown as "Menu Extras", a tidy set of 7 items with neutral names and realistic menus (for README recordings); every click / menu / popover is logged to guest `/tmp/fakeitems.log` |
 | `vm-logs.sh [10m\|1h\|-f]` | `/tmp/frost-stdout.log` plus `log show --info --predicate 'subsystem == "dev.frost.Frost"'`; `-f` streams |
 | `vm-grant-tcc.sh [--grant\|--revoke\|--show] [accessibility\|screen\|post-event]...` | write/remove Frost's rows in the guest's system TCC.db (all three services by default; e.g. `--revoke screen` leaves Accessibility only, to test Frost without Screen Recording; relaunch Frost afterwards) |
@@ -55,10 +55,14 @@ Environment overrides: `FROST_VM` (VM name, default `frost-test`), `FROST_VM_USE
   **SIP disabled**. A side effect: the guest does not enforce library validation, so a hardened build that a Mac with
   SIP enabled would refuse to launch (e.g. one missing the self-signed library validation exception, see
   `docs/releasing.md`, "Hardened Runtime and entitlements") still runs in the VM.
-- **VM config**: 4 CPUs, 8 GB RAM, display 1728×1117 pt (tart config). The guest came
-  up at a saved 1024×768@2x mode, so `vm-setup.sh` runs `set-display-mode.swift`
-  in the guest to switch permanently to 1728×1117@2x (3456×2234 px framebuffer).
-  It persists across reboots. The VM has no notch. tart gives a macOS guest a single display; for multi-display
+- **VM config**: 4 CPUs, 8 GB RAM, display 1728×1117 pt (tart config, `--display 1728x1117pt`). The guest came up at a
+  saved 1024×768@2x mode, so `vm-setup.sh` runs `set-display-mode.swift` in the guest to switch permanently to
+  1728×1117 points. **The scale follows the host**: tart turns a `pt` display into pixels with the host's main screen
+  scale, so on a Retina host the guest runs 1728×1117@2x (a 3456×2234 px framebuffer) and on a host whose main screen is
+  1x (e.g. an external 1080p display) it runs 1728×1117@1x (a 1728×1117 px framebuffer) and offers no 2x mode at all
+  (measured with tart 2.41: a `3456x2234px` display gives 3456×2234@1x, not 1728×1117@2x). Points are the same either
+  way; VNC coordinates are pixels, so use `vm-vnc.sh --points`, or `vm_fb_scale` in `common.sh` (`vm-setup.sh` prints
+  the scale, `vm-upgrade-test.sh` and `vm-record-demo.py` use it). It persists across reboots. The VM has no notch. tart gives a macOS guest a single display; for multi-display
   tests add a virtual one inside the guest (`guest-virtual-display.m`, below).
 - **Commands**: SSH with a dedicated key (`~/.local/share/frost-vm/id_ed25519`),
   installed on first `vm-up` with `sshpass` and the default password, or with `tart exec`
@@ -377,8 +381,9 @@ timing. Evidence (recordings, logs, analysis scripts) goes under `build/vm-shots
   icons' images are cached, then `make vm-run FROST_ENV="FROST_TEST_NO_SCREEN_CAPTURE=1"` (no live refresh and no
   capture after a forwarded click, so Frost never captures the screen; the panel shows the cached images). Find the
   snowflake (`dump-status-windows`) and the tile's centre (`guest-demo-drive <x> 15 x --list`, in points), then run
-  `~/.local/share/frost-vm/venv/bin/python -W ignore scripts/vm/vm-record-demo.py OUTDIR <snowflake x> 15 <tile x> <tile y>`.
-  It drives the pointer through VNC input and saves the top-right 480x328 pt region at 25 fps (960x656 px) from the VNC
+  `"$FROST_VM_STATE"/venv/bin/python -W ignore scripts/vm/vm-record-demo.py OUTDIR <snowflake x> 15 <tile x> <tile y>`
+  (points, at either framebuffer scale; the frames are 480×328 pt at that scale).
+  It drives the pointer through VNC input and saves the top-right 480x328 pt region at 25 fps (960x656 px at 2x) from the VNC
   framebuffer, which has no pointer: the script pastes an arrow at the commanded position, and after the click moves
   it onto the forwarded item, where Frost leaves the real pointer. VNC capture keeps up (the guest stays smooth, the
   clock doesn't skip) because the script asks for incremental updates from inside the client's reactor thread; calling

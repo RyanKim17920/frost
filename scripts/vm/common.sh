@@ -35,7 +35,9 @@ for c in "$HOME/.local/opt/tart/tart.app/Contents/MacOS/tart" /opt/homebrew/bin/
 done
 [[ -n "$TART" ]] || die "tart not found (see docs/testing-vm.md, 'Install tart')"
 
-vm_exists()  { "$TART" list --quiet 2>/dev/null | grep -qx "$VM_NAME"; }
+# Not `grep -q`: it exits at the first match, tart can then die of SIGPIPE writing the rest, and `pipefail` turns
+# that into "doesn't exist" (seen whenever the VM is the first line of the list).
+vm_exists()  { "$TART" list --quiet 2>/dev/null | grep -x "$VM_NAME" >/dev/null; }
 vm_running() { "$TART" list --format json 2>/dev/null \
   | /usr/bin/python3 -c 'import sys,json; n=sys.argv[1]; sys.exit(0 if any(v["Name"]==n and v.get("Running") for v in json.load(sys.stdin)) else 1)' "$VM_NAME"; }
 
