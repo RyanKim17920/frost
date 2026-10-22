@@ -218,4 +218,73 @@ import Testing
         #expect(ArrangedSectionKeeper.destination(for: .hidden, items: items, bands: bands, dividers: dividers,
                                                   excluding: [1, 2]) == .leftOf(903))
     }
+
+    // MARK: - New apps' icons
+
+    /// A new app's icon in the Always Hidden band would be drawn nowhere and listed nowhere (it counts as Visible
+    /// until arranged): it goes to Hidden, as on macOS 26, and is remembered there.
+    @Test func aNewIconInTheAlwaysHiddenBandGoesToHidden() {
+        let items = ownItems() + [item(1, x: 100)]
+        let decision = ArrangedSectionKeeper.decide(items: items, dividers: dividers, checked: [],
+                                                    remembered: { _ in nil }, isNew: { _ in true })
+        #expect(decision?.restores.map(\.item.windowID) == [1])
+        #expect(decision?.restores.first?.to == .hidden)
+        #expect(decision?.restores.first?.from == .alwaysHidden)
+        #expect(decision?.restores.first?.isNew == true)
+        #expect(decision?.newItems.map(\.section) == [.hidden])
+        #expect(decision?.settled.isEmpty == true)
+    }
+
+    /// Between a divider and its pair a new icon is in no band: it is moved into Hidden too.
+    @Test func aNewIconBetweenADividerAndItsPairGoesToHidden() {
+        let items = ownItems(ah: 200, ahPair: 260) + [item(1, x: 215)]
+        let decision = ArrangedSectionKeeper.decide(items: items, dividers: dividers, checked: [],
+                                                    remembered: { _ in nil }, isNew: { _ in true })
+        #expect(decision?.restores.map(\.to) == [.hidden])
+        #expect(decision?.restores.first?.from == nil)
+    }
+
+    /// A new icon the bar already has in Hidden or Visible stays where it is and is remembered there, so the Frost Bar
+    /// and the layout editor show it where it is drawn.
+    @Test func aNewIconInHiddenOrVisibleIsRememberedWhereItIs() {
+        let items = ownItems() + [item(1, x: 300), item(2, x: 500)]
+        let decision = ArrangedSectionKeeper.decide(items: items, dividers: dividers, checked: [],
+                                                    remembered: { _ in nil }, isNew: { _ in true })
+        #expect(decision?.restores.isEmpty == true)
+        #expect(decision?.settled == [1, 2])
+        let sections = Dictionary(uniqueKeysWithValues: (decision?.newItems ?? []).map { ($0.item.windowID, $0.section) })
+        #expect(sections == [1: .hidden, 2: .visible])
+    }
+
+    /// Only new icons are taken care of: a known icon that was never arranged stays as it is (settled, unrecorded).
+    @Test func knownNeverArrangedIconsStayUnrecorded() {
+        let items = ownItems() + [item(1, x: 100), item(2, x: 120)]
+        let decision = ArrangedSectionKeeper.decide(items: items, dividers: dividers, checked: [],
+                                                    remembered: { _ in nil }, isNew: { $0.windowID == 2 })
+        #expect(decision?.restores.map(\.item.windowID) == [2])
+        #expect(decision?.settled == [1])
+        #expect(decision?.newItems.map(\.item.windowID) == [2])
+    }
+
+    /// New icons need the bar read (a reveal): triage lists them as candidates; a remembered icon is never new.
+    @Test func triageListsNewIconsAsCandidates() {
+        let items = ownItems() + [item(1, x: 100), item(2, x: 300), item(3, x: 500)]
+        let triage = ArrangedSectionKeeper.triage(items: items, own: dividers.all, checked: [],
+                                                  remembered: { $0.windowID == 3 ? .visible : nil },
+                                                  isNew: { $0.windowID != 1 })
+        #expect(Set(triage.candidates.map(\.windowID)) == [2, 3])
+        #expect(triage.settled == [1])
+        let newOnes = ArrangedSectionKeeper.decide(items: items, dividers: dividers, checked: [],
+                                                   remembered: { $0.windowID == 3 ? .visible : nil },
+                                                   isNew: { $0.windowID != 1 })?.newItems.map(\.item.windowID)
+        #expect(newOnes == [2])
+    }
+
+    /// Shared or unresolved identities wait, new or not.
+    @Test func newIconsWithSharedIdentitiesWait() {
+        let items = ownItems() + [item(1, x: 100, key: "same"), item(2, x: 120, key: "same")]
+        let decision = ArrangedSectionKeeper.decide(items: items, dividers: dividers, checked: [],
+                                                    remembered: { _ in nil }, isNew: { _ in true })
+        #expect(decision == ArrangedSectionKeeper.Decision())
+    }
 }

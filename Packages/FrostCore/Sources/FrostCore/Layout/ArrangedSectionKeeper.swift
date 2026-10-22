@@ -1,6 +1,7 @@
 import CoreGraphics
 
-/// macOS 27: puts an icon its app re-added (a relaunch) back into the section the user arranged it in.
+/// macOS 27: puts an icon its app re-added (a relaunch) back into the section the user arranged it in, and gives a new
+/// app's icon a section.
 ///
 /// On 27 the sections are the arrangement (`ArrangedLayout`), not something read from the bar, so an icon the system
 /// re-adds somewhere else is still listed in its section while the bar draws it elsewhere: a Hidden icon that lands in
@@ -12,8 +13,10 @@ import CoreGraphics
 /// - **Checked once**: an icon is checked when its window first appears. On 27 window IDs are synthesized from the
 ///   owner's bundle ID, identity key and pid (`AXMenuBarInventory`), so a relaunch is a new window; Frost's own launch
 ///   checks every icon once. After that only the user moves it (never fight the user).
-/// - **Only remembered icons**: an icon the user never arranged counts as Visible wherever it is (`ArrangedLayout`),
-///   and is left alone.
+/// - **Remembered and new icons**: an icon the user never arranged counts as Visible wherever it is (`ArrangedLayout`)
+///   and is left alone, unless it is a new app's (`isNew`): that one is remembered in the band the bar has it in,
+///   except the Always Hidden band (drawn nowhere, listed nowhere), from which it goes to Hidden, as on macOS 26
+///   (`NewItemPlacement`).
 /// - **Trust**: nothing is decided unless Frost's own items are in the order they are placed in,
 ///   `AH < AH.Pair < H < H.Pair < snowflake`; otherwise the bands can't be told apart.
 /// - **Ambiguity**: icons whose identity is unresolved or shared by several current icons wait (unchecked).
@@ -69,7 +72,7 @@ public enum ArrangedSectionKeeper {
 
     /// The first-seen icons to check, sorted out without looking at the bar.
     public struct Triage: Equatable, Sendable {
-        /// Remembered icons whose band has to be read from a revealed bar.
+        /// Remembered and new icons whose band has to be read from a revealed bar.
         public var candidates: [MenuBarItem] = []
         /// Icons that need nothing whatever the bar says (never arranged, immovable, the overflow chevron): checked
         /// now.
@@ -83,9 +86,11 @@ public enum ArrangedSectionKeeper {
     ///   - skipping: identities with a pending return (`SectionKeeper.pendingReturns`): Frost's own interrupted move
     ///     puts them back into their exact slot; they wait until that is done.
     ///   - remembered: the section the user arranged an icon in, nil when never told.
+    ///   - isNew: whether a never-arranged icon is a new app's (`ItemMemoryStore.isNewOnArrangedBar`).
     public static func triage(items: [MenuBarItem], own: Set<CGWindowID>, checked: Set<CGWindowID>,
                               skipping: Set<ItemIdentity> = [],
-                              remembered: (MenuBarItem) -> MenuBarSection?) -> Triage {
+                              remembered: (MenuBarItem) -> MenuBarSection?,
+                              isNew: (MenuBarItem) -> Bool = { _ in false }) -> Triage {
         let others = items.filter { !own.contains($0.windowID) }
         let counts = Dictionary(others.compactMap(\.identity).map { ($0, 1) }, uniquingKeysWith: +)
         var triage = Triage()
@@ -97,7 +102,7 @@ public enum ArrangedSectionKeeper {
             }
             guard let identity = item.identity, counts[identity, default: 0] == 1,
                   !skipping.contains(identity) else { continue }
-            if remembered(item) == nil {
+            if remembered(item) == nil, !isNew(item) {
                 triage.settled.insert(item.windowID)
             } else {
                 triage.candidates.append(item)
@@ -113,12 +118,29 @@ public enum ArrangedSectionKeeper {
         /// The band the bar has it in (nil: between a divider and its pair).
         public let from: MenuBarSection?
         public let to: MenuBarSection
+        /// A new app's icon (also listed in `Decision.newItems`), not one going back to its arranged section.
+        public let isNew: Bool
 
-        public init(item: MenuBarItem, identity: ItemIdentity, from: MenuBarSection?, to: MenuBarSection) {
+        public init(item: MenuBarItem, identity: ItemIdentity, from: MenuBarSection?, to: MenuBarSection,
+                    isNew: Bool = false) {
             self.item = item
             self.identity = identity
             self.from = from
             self.to = to
+            self.isNew = isNew
+        }
+    }
+
+    /// A new app's icon and the section to remember it in.
+    public struct NewItem: Equatable, Sendable {
+        public let item: MenuBarItem
+        public let identity: ItemIdentity
+        public let section: MenuBarSection
+
+        public init(item: MenuBarItem, identity: ItemIdentity, section: MenuBarSection) {
+            self.item = item
+            self.identity = identity
+            self.section = section
         }
     }
 
@@ -127,20 +149,37 @@ public enum ArrangedSectionKeeper {
         public var restores: [Restore] = []
         /// Icons that need no move (already in their section, or no move is ever needed): checked now.
         public var settled: Set<CGWindowID> = []
+        /// New apps' icons and the section each goes into (left to right): where the bar has it, or Hidden for one
+        /// in the Always Hidden band or in no band (also in `restores`, to be moved there).
+        public var newItems: [NewItem] = []
     }
 
     /// Decides against a revealed bar (`items` with the frames read while every icon is drawn). Returns nil when
     /// Frost's own items are out of order (`physicalSections`): nothing is decided and nothing is checked.
     public static func decide(items: [MenuBarItem], dividers: Dividers, checked: Set<CGWindowID>,
                               skipping: Set<ItemIdentity> = [],
-                              remembered: (MenuBarItem) -> MenuBarSection?) -> Decision? {
+                              remembered: (MenuBarItem) -> MenuBarSection?,
+                              isNew: (MenuBarItem) -> Bool = { _ in false }) -> Decision? {
         guard let bands = physicalSections(of: items, dividers: dividers) else { return nil }
         let triage = triage(items: items, own: dividers.all, checked: checked, skipping: skipping,
-                            remembered: remembered)
+                            remembered: remembered, isNew: isNew)
         var decision = Decision(settled: triage.settled)
         for item in triage.candidates.sorted(by: { $0.frame.minX < $1.frame.minX }) {
-            guard let identity = item.identity, let target = remembered(item) else { continue }
+            guard let identity = item.identity else { continue }
             let band = bands[item.windowID]
+            guard let target = remembered(item) else {
+                // A new app's icon: remembered where the bar has it, except out of the Always Hidden band.
+                switch band {
+                case .hidden?, .visible?:
+                    decision.settled.insert(item.windowID)
+                    decision.newItems.append(NewItem(item: item, identity: identity, section: band ?? .hidden))
+                case .alwaysHidden?, nil:
+                    decision.restores.append(Restore(item: item, identity: identity, from: band, to: .hidden,
+                                                     isNew: true))
+                    decision.newItems.append(NewItem(item: item, identity: identity, section: .hidden))
+                }
+                continue
+            }
             if band == target {
                 decision.settled.insert(item.windowID)
             } else {

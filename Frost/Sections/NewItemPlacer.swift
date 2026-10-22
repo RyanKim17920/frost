@@ -30,7 +30,9 @@ import Observation
 ///
 /// On macOS 27 it migrates remembered identities, recovers returns loaded at launch, and moves icons the user arranged
 /// back into their sections when their app re-adds them elsewhere (`keepArrangedSections`, `ArrangedSectionKeeper`).
-/// It does not place new apps' icons there: an icon never arranged counts as Visible wherever it is (`ArrangedLayout`).
+/// A new app's icon (`ItemMemoryStore.isNewOnArrangedBar`) is checked in the same reveal: remembered in the band the
+/// bar has it in, or moved to Hidden from the Always Hidden band, as on macOS 26. Other never-arranged icons count as
+/// Visible wherever they are (`ArrangedLayout`).
 @MainActor
 final class NewItemPlacer {
     private let scanner: MenuBarItemScanner
@@ -39,8 +41,9 @@ final class NewItemPlacer {
     private let permissions: PermissionsService
     private let preferences: Preferences
     private let presence: UserPresenceMonitor
-    /// Whether automatic new-item placement and the macOS 26 section keeping (`SectionKeeper`) are available: macOS 26
-    /// only. On 27 relaunched icons are kept in their arranged sections by `keepArrangedSections` instead.
+    /// Whether the window-list placement of new icons (`NewItemPlacement`) and the macOS 26 section keeping
+    /// (`SectionKeeper`) are available: macOS 26 only. On 27 relaunched and new icons are handled from a revealed bar by
+    /// `keepArrangedSections` instead.
     private let canMoveItems: Bool
 
     /// Called by SectionController when it first writes the AH seed.
@@ -144,7 +147,8 @@ final class NewItemPlacer {
 
     private func evaluate() async {
         guard permissions.canManageItems else { return }
-        if store.known == nil, !refreshedForSeeding {
+        // The seen set is completed from a full ownership read (on 27 once per launch, `seedArrangedBaseline`).
+        if store.known == nil || !canMoveItems, !refreshedForSeeding {
             await scanner.refreshOwnership()
             refreshedForSeeding = true
         }
@@ -155,11 +159,13 @@ final class NewItemPlacer {
         // Identity migration runs here on every backend: it moves remembered sections written under an earlier key
         // format (`IdentityMigration`) to the items' current identities, and on macOS 27 that memory is the only
         // thing the sections are read from — skipping it would show a user's arranged icons as Visible after an
-        // upgrade. General new-item placement and section keeping below remain macOS 26 only.
+        // upgrade. The window-list placement and section keeping below are macOS 26 only; 27 checks relaunched and new
+        // icons in a revealed bar (`keepArrangedSections`).
         let layout = SectionAssigner.layout(of: scanner.items, controls: controls)
         guard !layout.isEmpty else { return }
         store.migrateIdentities(scanner.items)
         guard canMoveItems else {
+            store.seedArrangedBaseline(scanner.items)
             if !store.keeper.pendingReturns.isEmpty {
                 guard !mover.isBusy, !UserMouseButtons.isAnyHeld, !isPaused(), !ItemClicker.isMenuOnScreen() else {
                     schedule(after: Self.retryDelay)
@@ -302,14 +308,10 @@ final class NewItemPlacer {
         let own = sections.accessibilityDividers?.all ?? []
         let triage = ArrangedSectionKeeper.triage(items: scanner.items, own: own, checked: arrangedChecked,
                                                   skipping: Set(store.keeper.pendingReturns.keys),
-                                                  remembered: { self.rememberedSection(of: $0) })
+                                                  remembered: { self.rememberedSectionToKeep(of: $0) },
+                                                  isNew: { self.isNewIcon($0) })
         arrangedChecked.formUnion(triage.settled)
         guard !triage.candidates.isEmpty else { return }
-        // The setting is off: accept these icons where they are (as on macOS 26, `SectionKeeper.observe`).
-        guard preferences.keepItemSections else {
-            arrangedChecked.formUnion(triage.candidates.map(\.windowID))
-            return
-        }
         let ids = Set(triage.candidates.map(\.windowID))
         if ids != arrangedCandidates {
             arrangedCandidates = ids
@@ -325,8 +327,10 @@ final class NewItemPlacer {
             schedule(after: Self.retryDelay)
             return
         }
+        let newCount = triage.candidates.filter { self.isNewIcon($0) }.count
         FrostLog.newItems.notice("""
-            checking \(ids.count, privacy: .public) arranged item(s) that appeared, in a revealed menu bar
+            checking \(ids.count, privacy: .public) item(s) that appeared (\(newCount, privacy: .public) new), in a \
+            revealed menu bar
             """)
         // Not inheriting cancellation, like the macOS 26 moves (`evaluate`): the rescans during the reveal re-trigger
         // `observe`, which cancels the evaluation task.
@@ -344,7 +348,8 @@ final class NewItemPlacer {
         // A batch cut short (a mouse button, the Frost Bar opening, another move) leaves icons unchecked.
         let left = ArrangedSectionKeeper.triage(items: scanner.items, own: own, checked: arrangedChecked,
                                                 skipping: Set(store.keeper.pendingReturns.keys),
-                                                remembered: { self.rememberedSection(of: $0) })
+                                                remembered: { self.rememberedSectionToKeep(of: $0) },
+                                                isNew: { self.isNewIcon($0) })
         if !left.candidates.isEmpty, !mover.isShuttingDown { schedule(after: Self.retryDelay) }
     }
 
@@ -354,8 +359,7 @@ final class NewItemPlacer {
     /// `SectionController.alignAccessibilityBoundaries` before it aligns the dividers (Frost's launch, and with the
     /// layout editor closed).
     func restoreRelaunchedItemsWhileRevealed() async {
-        guard !canMoveItems, preferences.keepItemSections, permissions.canManageItems, !isPaused(),
-              !presence.isAway else { return }
+        guard !canMoveItems, permissions.canManageItems, !isPaused(), !presence.isAway else { return }
         do {
             try await mover.transaction { await restoreRelaunchedItems(givingUpIfUnreadable: false) }
         } catch {
@@ -374,7 +378,8 @@ final class NewItemPlacer {
         let skipping = Set(store.keeper.pendingReturns.keys)
         guard let decision = ArrangedSectionKeeper.decide(items: scanner.items, dividers: dividers,
                                                           checked: arrangedChecked, skipping: skipping,
-                                                          remembered: { self.rememberedSection(of: $0) })
+                                                          remembered: { self.rememberedSectionToKeep(of: $0) },
+                                                          isNew: { self.isNewIcon($0) })
         else {
             FrostLog.newItems.notice("""
                 not checking arranged items: Frost's dividers are not in their usual order in the revealed menu bar
@@ -382,12 +387,18 @@ final class NewItemPlacer {
             if givingUpIfUnreadable {
                 let triage = ArrangedSectionKeeper.triage(items: scanner.items, own: dividers.all,
                                                           checked: arrangedChecked, skipping: skipping,
-                                                          remembered: { self.rememberedSection(of: $0) })
+                                                          remembered: { self.rememberedSectionToKeep(of: $0) },
+                                                          isNew: { self.isNewIcon($0) })
                 arrangedChecked.formUnion(triage.candidates.map(\.windowID))
             }
             return
         }
         arrangedChecked.formUnion(decision.settled)
+        // New icons the bar already has in Hidden or Visible: remembered there now (the others once moved).
+        let moving = Set(decision.restores.map(\.item.windowID))
+        for new in decision.newItems where !moving.contains(new.item.windowID) {
+            recordNewIcon(new.item, in: new.section, reason: "the bar has it there")
+        }
         var remaining = Set(decision.restores.map(\.item.windowID))
         for restore in decision.restores {
             let item = restore.item
@@ -406,11 +417,21 @@ final class NewItemPlacer {
                 FrostLog.newItems.notice("Frost's dividers moved out of order; not moving the remaining arranged items")
                 break
             }
-            if bands[item.windowID] == restore.to { continue }
+            if bands[item.windowID] == restore.to {
+                if restore.isNew { recordNewIcon(item, in: restore.to, reason: "the bar has it there") }
+                continue
+            }
             let destination = ArrangedSectionKeeper.destination(for: restore.to, items: scanner.items, bands: bands,
                                                                 dividers: dividers, excluding: remaining)
             do {
                 try await mover.move(item.windowID, to: destination, yieldingToMenus: true)
+                if restore.isNew {
+                    recordNewIcon(item, in: restore.to, reason: """
+                        moved out of \(restore.from?.rawValue ?? "between a divider and its pair") \
+                        (\(String(describing: destination)))
+                        """)
+                    continue
+                }
                 FrostLog.newItems.notice("""
                     moved \(item.bundleID ?? "?", privacy: .public) (\(item.identityKey ?? "?", privacy: .private)) \
                     back to \(restore.to.rawValue, privacy: .public) \
@@ -430,8 +451,32 @@ final class NewItemPlacer {
                     failed to move \(item.bundleID ?? "?", privacy: .public) back to \
                     \(restore.to.rawValue, privacy: .public): \(error, privacy: .public)
                     """)
+                // A new icon is remembered where it stayed, so the Frost Bar and the layout editor list it there.
+                if restore.isNew, let from = restore.from {
+                    recordNewIcon(item, in: from, reason: "moving it to \(restore.to.rawValue) failed")
+                }
             }
         }
+    }
+
+    /// The section an icon goes back to when its app re-adds it elsewhere: the remembered one while "Keep icons in
+    /// their sections" is on, none otherwise (accepted where it is, as on macOS 26, `SectionKeeper.observe`).
+    private func rememberedSectionToKeep(of item: MenuBarItem) -> MenuBarSection? {
+        preferences.keepItemSections ? rememberedSection(of: item) : nil
+    }
+
+    /// macOS 27: a new app's icon (`ItemMemoryStore.isNewOnArrangedBar`), which gets a section whatever the setting:
+    /// new-icon placement isn't optional on macOS 26 either.
+    private func isNewIcon(_ item: MenuBarItem) -> Bool {
+        store.isNewOnArrangedBar(item, among: scanner.items)
+    }
+
+    private func recordNewIcon(_ item: MenuBarItem, in section: MenuBarSection, reason: String) {
+        guard store.recordArranged(item, in: section, among: scanner.items) else { return }
+        FrostLog.newItems.notice("""
+            new item \(item.bundleID ?? "?", privacy: .public) (\(item.identityKey ?? "?", privacy: .private)) \
+            goes in \(section.rawValue, privacy: .public): \(reason, privacy: .public)
+            """)
     }
 
     /// The section the user keeps `item` in, as remembered from an earlier drop (`ItemMemoryStore`); nil when

@@ -31,6 +31,10 @@ public final class ItemMemoryStore {
     /// remembered sections' format, as 0.3.2 stored it, plus each icon's neighbours): written before the background
     /// capture moves an item out, removed once it is back.
     private static let pendingReturnsKey = "pendingItemReturns.v1"
+    /// macOS 27: the seen set covers every icon present when new-icon placement started there
+    /// (`seedArrangedBaseline`). Releases up to 0.4.2 didn't maintain the seen set on 27, so without this every icon
+    /// such a user never arranged would count as a new app's.
+    private static let arrangedBaselineKey = "arrangedNewItemsBaseline.v1"
 
     /// Icons seen so far; nil means the first scan hasn't happened yet (seeded on the next decision).
     public private(set) var known: Set<ItemIdentity>?
@@ -135,6 +139,41 @@ public final class ItemMemoryStore {
         if outcome.memoryChanged { saveSections() }
         if outcome.pendingReturnsChanged { savePendingReturns() }
         return outcome
+    }
+
+    // MARK: - New apps' icons on macOS 27
+
+    /// macOS 27: completes the seen set with every current icon and every remembered one, once (persisted), so only
+    /// icons that appear after this count as new (`isNewOnArrangedBar`). Moves nothing. Returns whether it seeded (the
+    /// first decision of the first launch that places new icons on 27).
+    @discardableResult
+    public func seedArrangedBaseline(_ items: [MenuBarItem]) -> Bool {
+        guard !defaults.bool(forKey: Self.arrangedBaselineKey) else { return false }
+        remember(Set(items.compactMap(\.identity)).union(keeper.memory.keys), seeding: true)
+        defaults.set(true, forKey: Self.arrangedBaselineKey)
+        FrostLog.newItems.notice("""
+            new icons are placed from now on: \(self.known?.count ?? 0, privacy: .public) icon(s) count as seen
+            """)
+        return true
+    }
+
+    /// macOS 27: whether `item` is a new app's icon: the seen set has been completed (`seedArrangedBaseline`), its
+    /// identity is resolved and unique among `items`, it was never seen and never arranged. Identities that may still
+    /// map to a title-keyed seen icon count as seen (`IdentityMigration.presumedKnown`).
+    public func isNewOnArrangedBar(_ item: MenuBarItem, among items: [MenuBarItem]) -> Bool {
+        guard defaults.bool(forKey: Self.arrangedBaselineKey), let known, let identity = item.identity,
+              keeper.memory[identity] == nil, !known.contains(identity),
+              items.filter({ $0.identity == identity }).count == 1 else { return false }
+        return !IdentityMigration.presumedKnown(known: known, items: [item]).contains(identity)
+    }
+
+    /// Records a new icon's section and marks it as seen. Returns false (nothing recorded) when its identity is
+    /// unresolved or shared with another of `items`.
+    @discardableResult
+    public func recordArranged(_ item: MenuBarItem, in section: MenuBarSection, among items: [MenuBarItem]) -> Bool {
+        guard let identity = item.identity, record(item, in: section, among: items) else { return false }
+        remember([identity], seeding: false)
+        return true
     }
 
     // MARK: - Recording
