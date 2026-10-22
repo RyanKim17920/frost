@@ -622,6 +622,12 @@ compare the menu bar extras' AX frames and the pixels of the bar (`testing-vm.md
 - [ ] In Menu Bar mode, **Rehide when you're done** behaves as in section 3: expanded, picking an entry in a revealed
   icon's menu (or Esc) collapses once the pointer leaves the menu bar, and ⌘-Tab to another app collapses. Check the
   collapse on the framebuffer.
+- [ ] **A new app's icons go to Hidden**: launch an app whose icons the bar never had (`vm-fake-items.sh launch B` on a
+  VM where FakeItemsB never ran): the bar reveals once (log `checking 2 item(s) that appeared (2 new)`), each icon is
+  ⌘-dragged out of the Always Hidden band (`new item … goes in hidden: moved out of alwaysHidden`), the collapsed
+  framebuffer doesn't draw them and the Frost Bar lists them under Hidden. Relaunching the app then logs `(0 new)` and
+  moves nothing. After an upgrade from 0.4.2, the first launch logs `new icons are placed from now on: N icon(s) count
+  as seen` and moves nothing; the next launch doesn't log it again.
 - [ ] **Relaunched icons go back into their arranged sections** (Behavior → Keep icons in their sections on): arrange
   one FakeItems icon in Visible, one in Hidden and one in Always Hidden, close the editor, then quit and relaunch
   FakeItems (`vm-fake-items.sh quit`, `launch A`). About 1.5 s after the icons reappear the bar reveals once

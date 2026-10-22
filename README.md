@@ -51,8 +51,8 @@ The same Frost Bar and Settings interface, with the macOS 27 differences listed 
 - **Layout editor:** drag icons between sections or change their order; each drop moves the actual menu bar icon.
   Optional Screen Recording adds captured images on both macOS versions.
 - **Keep icons in their sections:** when an app relaunches and macOS puts its icon somewhere else, Frost moves it
-  back. On macOS 26, new apps' icons also go to Hidden; on macOS 27, sections are the ones you set in Layout, and
-  checking a relaunched icon briefly reveals the menu bar.
+  back. New apps' icons go to Hidden instead of disappearing into Always Hidden. On macOS 27, sections are the ones
+  you set in Layout, and checking a relaunched or new icon briefly reveals the menu bar.
 - **Display modes:** Automatic (the Frost Bar on displays with a notch, in the menu bar elsewhere), In Menu Bar, or
   Frost Bar.
 - **Multiple displays, launch at login, automatic updates** with a quiet reminder dot instead of pop-ups.
@@ -116,8 +116,8 @@ reopens the window you were in.
   currently draws. The Frost Bar lists your configured Hidden items (plus Always Hidden on Option-click),
   without a hidden-item count. Forwarding briefly reveals the menu bar to move an item out and back. Captured images
   refresh when the panel opens and while editing, rather than continuously while the panel stays open; items that
-  cannot be captured keep their app icon. A relaunched icon is moved back into the section you set in Layout (new
-  apps' icons stay where macOS puts them), which briefly reveals the menu bar. An ⌥-click on a Frost Bar icon
+  cannot be captured keep their app icon. A relaunched icon is moved back into the section you set in Layout, and a new
+  app's icon that macOS puts in Always Hidden is moved to Hidden; both briefly reveal the menu bar. An ⌥-click on a Frost Bar icon
   arrives as a plain click, because macOS 27 delivers menu bar clicks without modifier keys. Verified on one unnotched
   display; notched hardware and multiple displays still need verification on this backend.
 - On macOS 28 and later, Frost leaves the menu bar alone and shows an unsupported-version notice.

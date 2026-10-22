@@ -678,3 +678,14 @@ it:
 
 Checks: `manual-test-checklist.md`, section 11 (the relaunch items).
 
+### New apps' icons (2026-10-22)
+
+Measured in the same VM: launching an app whose icons the bar had never had (FakeItemsB, two icons) put both in the
+**Always Hidden band**, at the far left of the trailing area, like a fresh status item of Frost's own (above). Before
+this, such an icon counted as Visible (never arranged), so it was drawn nowhere and listed nowhere. Frost now checks
+it in the same revealed pass as a relaunch (`checking 2 item(s) that appeared (2 new)`), moves each one into Hidden
+after the band's last icon, verified by the order the bar reports, and remembers it there: the collapsed framebuffer
+didn't draw them, and the Frost Bar listed them under Hidden. Relaunching that app afterwards logged `(0 new)` and
+moved nothing (the system restored their slots, as for the relaunch above). An upgrade from 0.4.2 completed the seen set
+with the 13 icons present (`new icons are placed from now on: 13 icon(s) count as seen`) and moved nothing.
+

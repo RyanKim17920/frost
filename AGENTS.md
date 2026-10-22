@@ -285,8 +285,11 @@ The bullets below are macOS 26 unless they say otherwise; macOS 27 is a separate
 - **Relaunched icons are put back into their arranged sections from a revealed bar** (`ArrangedSectionKeeper`,
   `NewItemPlacer.keepArrangedSections`): a window ID is synthesized from bundle ID, identity key and pid, so a
   relaunch is a new window, checked once. The band is read only while every icon is drawn, from the order relative to
-  `AH < AH.Pair < H < H.Pair < snowflake` (anything else: decide nothing); only remembered icons move, never-arranged
-  ones count as Visible wherever they are. Frost's launch runs it inside `alignAccessibilityBoundaries`, **before**
+  `AH < AH.Pair < H < H.Pair < snowflake` (anything else: decide nothing); remembered icons go back to their section.
+  A **new app's icon** (`ItemMemoryStore.isNewOnArrangedBar`: never seen, never arranged) is checked in the same pass:
+  remembered in its band, or moved to Hidden from the Always Hidden band, where macOS 27 puts it (measured). Other
+  never-arranged icons count as Visible wherever they are. 0.4.2 never kept the seen set on 27, so the first launch
+  completes it once (`seedArrangedBaseline`, marker `arrangedNewItemsBaseline.v1`) and moves nothing. Frost's launch runs it inside `alignAccessibilityBoundaries`, **before**
   the pairs are aligned, and the Hidden pair's anchor ignores icons left of the Always Hidden pair: a far-left icon
   counted as Visible once dragged the Hidden divider there and revealed the whole Hidden section.
 - **27 uses its own autosave names** so no saved macOS 26 separator position is inherited, and it never writes the 26

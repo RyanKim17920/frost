@@ -6,6 +6,10 @@ release notes on GitHub and in the in-app update window.
 
 ## [Unreleased]
 
+### Fixed
+- On macOS 27, a new app's icon that macOS puts in Always Hidden, where it was neither drawn nor listed in the Frost
+  Bar, now goes to Hidden, as on macOS 26. Icons present when you update count as seen and stay where they are.
+
 ## [0.4.2] - 2026-10-21
 
 ### Added
