@@ -188,6 +188,20 @@ import Testing
                                             ownPID: ownPID))
     }
 
+    /// The windows that keep smart rehide waiting, for the log when the delay timer has to collapse instead.
+    @Test func theOpenPresentationsAreTheWindowsIsOpenCounts() {
+        let menu = window(1, layer: 101, CGRect(x: 600, y: 400, width: 200, height: 100))
+        let popover = window(2, CGRect(x: 1200, y: 32, width: 300, height: 400))
+        let normal = window(3, layer: 0, CGRect(x: 0, y: 30, width: 800, height: 600))
+        let old = window(4, CGRect(x: 100, y: 32, width: 300, height: 400))
+        let open = MenuBarPresentation.openWindows(in: [menu, popover, normal, old], baseline: [3, 4],
+                                                   menuBars: menuBars, ownPID: ownPID)
+        #expect(open.map(\.windowID) == [1, 2])
+        #expect(MenuBarPresentation.openWindows(in: [normal, old], baseline: [3, 4], menuBars: menuBars,
+                                                ownPID: ownPID).isEmpty)
+        #expect(MenuBarPresentation.describe(popover) == "window 2 (pid 50, layer 25, at 1200,32 300x400)")
+    }
+
     @Test func aClickInsideAPopoverIsNotAnOutsideClickButOneInAMenuStillIs() {
         let popover = window(1, CGRect(x: 1200, y: 32, width: 300, height: 400))
         let menu = window(2, layer: 101, CGRect(x: 600, y: 30, width: 200, height: 100))

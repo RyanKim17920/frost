@@ -149,10 +149,24 @@ public enum MenuBarPresentation {
     /// that hangs from the menu bar.
     public static func isOpen(in windows: [Window], baseline: Set<CGWindowID>, menuBars: [CGRect],
                               ownPID: pid_t) -> Bool {
-        windows.contains { window in
+        !openWindows(in: windows, baseline: baseline, menuBars: menuBars, ownPID: ownPID).isEmpty
+    }
+
+    /// The windows `isOpen` counts, front to back: what keeps smart rehide waiting (logged when the delay timer
+    /// collapses instead).
+    public static func openWindows(in windows: [Window], baseline: Set<CGWindowID>, menuBars: [CGRect],
+                                   ownPID: pid_t) -> [Window] {
+        windows.filter { window in
             window.layer == ItemClicker.menuLayer
                 || (!baseline.contains(window.windowID) && hangsFromMenuBar(window, menuBars: menuBars, ownPID: ownPID))
         }
+    }
+
+    /// A window for the log: ID, owner, layer and frame (no titles: they can be user content).
+    public static func describe(_ window: Window) -> String {
+        let f = window.frame
+        return "window \(window.windowID) (pid \(window.ownerPID.map(String.init) ?? "?"), layer \(window.layer), "
+            + "at \(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height)))"
     }
 
     /// Whether `point` (CG) is inside a non-menu window hanging from the menu bar: a click there is the user working
